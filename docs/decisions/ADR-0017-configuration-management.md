@@ -27,9 +27,9 @@ Implement **12-Factor App Configuration with Spring Cloud Config**:
 
 **Priority 1: Environment Variables** (highest priority)
 ```bash
-DATABASE_URL=postgresql://prod.aws.com/inventory
-DATABASE_PASSWORD=secret123
-KAFKA_BROKERS=kafka-1:9092,kafka-2:9092,kafka-3:9092
+DATABASE_URL= <ENV_DB_URL>
+DATABASE_PASSWORD= <ENV_DB_PASSWORD>
+KAFKA_BROKERS= <ENV_KAFKA_BROKERS>
 ```
 
 **Priority 2: Spring Cloud Config Server**

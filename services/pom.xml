@@ -25,6 +25,7 @@
         <module>warehouse-service</module>
         <module>inventory-service</module>
         <module>supplier-service</module>
+        <module>customer-service</module>
         <module>audit-service</module>
         <module>order-service</module>
         <module>notification-service</module>

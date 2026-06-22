@@ -1,16 +1,7 @@
-# Compiled class file
+# =========================
+# Java & Maven
+# =========================
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
@@ -19,6 +10,157 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# Maven
+target/
+.m2/
+dependency-reduced-pom.xml
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.next
+pom.xml.bak
+pom.xml.asc
+release.properties
+
+# Compiled sources
+*.log
+*.swp
+*.swo
+
+# Virtual machine crash logs
 hs_err_pid*
 replay_pid*
+.mtj.tmp/
+
+# =========================
+# IDEs
+# =========================
+.idea/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+.c9/
+*.sublime-project
+*.sublime-workspace
+*.launch
+.vscode/
+*.code-workspace
+
+# VS Code specific
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# =========================
+# Operating System
+# =========================
+.DS_Store
+Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# =========================
+# Build & Environment
+# =========================
+.gradle
+build/
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# =========================
+# Docker
+# =========================
+.docker/
+docker-compose.override.yml
+.dockerignore
+
+# =========================
+# Node (for scripts/tools)
+# =========================
+node_modules/
+npm-debug.log
+yarn-error.log
+.npm
+
+# =========================
+# Database
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+data/
+postgres-data/
+redis-data/
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+*.log.*
+application.log
+
+# =========================
+# Temporary files
+# =========================
+tmp/
+temp/
+*.tmp
+*.bak
+*~
+.~*
+.cache
+
+# =========================
+# Coverage Reports
+# =========================
+coverage/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+jacoco.xml
+*.xml
+
+# =========================
+# Distribution packages
+# =========================
+dist/
+build/
+*.egg-info/
+*.whl
+
+# =========================
+# Test Reports
+# =========================
+test-results/
+test-reports/
+surefire-reports/
+
+# =========================
+# SonarQube
+# =========================
+.sonarqube/
+.sonarlint/
+
+# =========================
+# Misc
+# =========================
+.history/
+.vscode-test
+.apidevtools
+.grunt
+.jshintrc
+.npm
+.npmignore
+.nyc_output
+

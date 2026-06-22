@@ -129,7 +129,7 @@ coverage/
 htmlcov/
 .pytest_cache/
 jacoco.xml
-*.xml
+# Note: DO NOT ignore all .xml files - pom.xml must be tracked!
 
 # =========================
 # Distribution packages

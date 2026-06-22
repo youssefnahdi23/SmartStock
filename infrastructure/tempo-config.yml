@@ -1,0 +1,41 @@
+# Tempo Configuration
+# Distributed tracing for SmartStock microservices
+
+# Use environment var LOG_LEVEL to control logging
+# Defaults to info if not set
+
+server:
+  http_listen_port: 3200
+  log_level: ${TEMPO_LOG_LEVEL:-info}
+
+distributor:
+  rate_limit_bytes: 0
+
+ingester:
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    compacted_block_retention: 10m
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal
+
+# Receivers for different protocols
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+# Exporters for metrics and logs (optional)
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8888

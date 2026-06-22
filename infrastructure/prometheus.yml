@@ -1,0 +1,71 @@
+# Prometheus Configuration
+# Metrics collection for SmartStock microservices
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'smartstock-monitor'
+    environment: 'development'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "alert_rules.yml"
+  # - "recording_rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Services with Prometheus metrics (will be added as services are deployed)
+  - job_name: 'identity-service'
+    static_configs:
+      - targets: ['identity-service:8081']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  - job_name: 'product-service'
+    static_configs:
+      - targets: ['product-service:8082']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+
+  - job_name: 'inventory-service'
+    static_configs:
+      - targets: ['inventory-service:8083']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+
+  - job_name: 'warehouse-service'
+    static_configs:
+      - targets: ['warehouse-service:8084']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+
+  # PostgreSQL databases (via postgres_exporter, optional)
+  # - job_name: 'postgres-identity'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+
+  # Redis (via redis_exporter, optional)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+
+  # Kafka (via jmx_exporter, optional)
+  # - job_name: 'kafka'
+  #   static_configs:
+  #     - targets: ['kafka-exporter:9090']

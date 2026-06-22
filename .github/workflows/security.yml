@@ -1,0 +1,60 @@
+name: Security
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Run Dependency-Check
+      run: |
+        mvn org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=5.0 || true
+    
+    - name: Upload OWASP Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: dependency-check-report
+        path: target/dependency-check-report.html
+      if: always()
+    
+    - name: Run Snyk Security Scan
+      uses: snyk/actions/maven@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      continue-on-error: true
+    
+    - name: Upload Snyk Report
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: snyk.sarif
+      if: always()
+
+  secrets:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Scan for Secrets
+      uses: GitGuardian/gitguardian-action@main
+      env:
+        GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+      continue-on-error: true

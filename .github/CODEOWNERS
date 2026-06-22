@@ -1,0 +1,53 @@
+# CODEOWNERS file for SmartStock AI
+# https://help.github.com/articles/about-codeowners/
+
+# Architecture and decisions
+/docs/decisions/ @youssefnahdi23
+/.github/instructions/ @youssefnahdi23
+
+# Build and infrastructure
+/docker-compose.yml @youssefnahdi23
+/Dockerfile @youssefnahdi23
+Makefile @youssefnahdi23
+/scripts/ @youssefnahdi23
+
+# Parent project configuration
+/pom.xml @youssefnahdi23
+/services/pom.xml @youssefnahdi23
+
+# Common module (shared by all services)
+/services/common/ @youssefnahdi23
+
+# Identity Service
+/services/identity-service/ @youssefnahdi23
+
+# Other microservices (as they're created)
+/services/product-service/ @youssefnahdi23
+/services/inventory-service/ @youssefnahdi23
+/services/warehouse-service/ @youssefnahdi23
+/services/supplier-service/ @youssefnahdi23
+/services/customer-service/ @youssefnahdi23
+/services/order-service/ @youssefnahdi23
+/services/audit-service/ @youssefnahdi23
+/services/notification-service/ @youssefnahdi23
+/services/reporting-service/ @youssefnahdi23
+/services/analytics-service/ @youssefnahdi23
+/services/data-export-service/ @youssefnahdi23
+
+# API Gateway
+/services/api-gateway/ @youssefnahdi23
+
+# Desktop Application
+/desktop-client/ @youssefnahdi23
+
+# GitHub workflows
+/.github/workflows/ @youssefnahdi23
+
+# Documentation
+*.md @youssefnahdi23
+/docs/ @youssefnahdi23
+
+# Configuration
+/.editorconfig @youssefnahdi23
+/.gitignore @youssefnahdi23
+/.gitattributes @youssefnahdi23

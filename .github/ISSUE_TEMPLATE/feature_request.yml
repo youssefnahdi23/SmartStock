@@ -1,0 +1,153 @@
+name: Feature Request
+description: Propose a new feature or enhancement for SmartStock AI
+title: "feat: [Service] Brief description of the feature"
+labels: [ "enhancement", "triage" ]
+assignees: [ "youssefnahdi23" ]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature Request
+        Thank you for your interest in improving SmartStock AI. Please complete this form to help us understand your proposal.
+        
+        **Important**: Features must align with our Architecture Decision Records (ADRs). Please review `/docs/decisions/` before submitting.
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Target Service
+      description: Which microservice(s) would this feature affect?
+      multiple: true
+      options:
+        - identity-service
+        - product-service
+        - inventory-service
+        - warehouse-service
+        - supplier-service
+        - customer-service
+        - order-service
+        - audit-service
+        - notification-service
+        - reporting-service
+        - analytics-service
+        - data-export-service
+        - api-gateway
+        - desktop-client
+        - infrastructure
+        - new-service
+        - cross-cutting
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feature-type
+    attributes:
+      label: Feature Type
+      options:
+        - New API Endpoint
+        - Business Logic Enhancement
+        - Event / Integration
+        - Performance Improvement
+        - Security Enhancement
+        - Data / Analytics
+        - UI / Desktop Client
+        - Infrastructure
+        - AI Readiness / Data Quality
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Problem Statement
+      description: Describe the problem or gap this feature addresses.
+      placeholder: |
+        As a [role], I need [capability] so that [business value].
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you'd like to see implemented.
+    validations:
+      required: true
+
+  - type: textarea
+    id: adr-compliance
+    attributes:
+      label: ADR Compliance
+      description: Which existing ADRs does this feature touch? Does it comply with them?
+      placeholder: |
+        - ADR-0001: Microservices Architecture — Compliant (isolated to product-service)
+        - ADR-0003: Database Per Service — Compliant (no shared DB)
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-design
+    attributes:
+      label: Proposed API Design (if applicable)
+      description: Describe the proposed REST API changes.
+      placeholder: |
+        POST /api/v1/products/{id}/variants
+        Request: { ... }
+        Response: { ... }
+      render: markdown
+
+  - type: textarea
+    id: events
+    attributes:
+      label: Domain Events (if applicable)
+      description: List any new domain events this feature would publish.
+      placeholder: |
+        - ProductVariantCreated
+        - ProductVariantUpdated
+
+  - type: textarea
+    id: ai-readiness
+    attributes:
+      label: AI Readiness Impact
+      description: Does this feature generate or affect structured data used for future AI pipelines?
+      placeholder: |
+        This feature emits ProductVariantCreated events containing product ID, variant attributes, 
+        and timestamp — useful for future demand forecasting per variant.
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Business Priority
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions you've considered.
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other context, diagrams, or references.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: I have reviewed the ADRs in `/docs/decisions/`
+          required: true
+        - label: This feature does not violate microservice boundaries
+          required: true

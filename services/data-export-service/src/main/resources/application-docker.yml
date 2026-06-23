@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/smartstock
+    username: ${DB_USER:smartstock}
+    password: ${DB_PASSWORD:smartstock}
+  
+  kafka:
+    bootstrap-servers: kafka:9092
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true

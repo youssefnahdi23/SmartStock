@@ -1,0 +1,114 @@
+name: ADR Proposal
+description: Propose a new Architecture Decision Record for SmartStock AI
+title: "docs: ADR-XXXX [short descriptive title]"
+labels: [ "adr", "architecture" ]
+assignees: [ "youssefnahdi23" ]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Architecture Decision Record (ADR) Proposal
+        
+        ADRs are the authoritative backbone of SmartStock AI. Every significant architectural decision 
+        must be documented before implementation begins.
+        
+        Review existing ADRs in `/docs/decisions/` before proposing a new one.
+
+  - type: input
+    id: adr-number
+    attributes:
+      label: Proposed ADR Number
+      description: Next sequential number (e.g. ADR-0018)
+      placeholder: "e.g. ADR-0018"
+    validations:
+      required: true
+
+  - type: input
+    id: adr-title
+    attributes:
+      label: ADR Title
+      description: Short descriptive title
+      placeholder: "e.g. Message Queue Strategy"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: status
+    attributes:
+      label: Proposed Status
+      options:
+        - Proposed
+        - Accepted
+        - Rejected
+        - Deprecated
+        - Superseded
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Describe the problem or situation that requires an architectural decision.
+    validations:
+      required: true
+
+  - type: textarea
+    id: decision
+    attributes:
+      label: Proposed Decision
+      description: State clearly the architectural choice being proposed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: List and briefly evaluate each alternative.
+      placeholder: |
+        Option A: ...
+        Option B: ...
+        Option C: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Consequences
+      description: Describe positive and negative impacts of this decision.
+    validations:
+      required: true
+
+  - type: textarea
+    id: ai-readiness
+    attributes:
+      label: AI Readiness Considerations
+      description: How does this decision affect data collection quality, event structure, or future AI pipelines?
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-adrs
+    attributes:
+      label: Affected Existing ADRs
+      description: Does this proposal conflict with, supersede, or extend any existing ADR?
+      placeholder: |
+        - Extends ADR-0004 (Kafka Event Broker)
+        - Supersedes ADR-0011 (Redis Caching)
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I have reviewed all existing ADRs in `/docs/decisions/`
+          required: true
+        - label: This ADR does not duplicate an existing decision
+          required: true
+        - label: I have considered microservice boundary implications
+          required: true
+        - label: I have considered AI readiness implications
+          required: true

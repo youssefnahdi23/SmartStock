@@ -1,0 +1,109 @@
+# Labeler configuration for SmartStock AI
+# https://github.com/actions/labeler
+
+# --- Services ---
+
+identity-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/identity-service/**'
+
+product-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/product-service/**'
+
+inventory-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/inventory-service/**'
+
+warehouse-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/warehouse-service/**'
+
+supplier-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/supplier-service/**'
+
+customer-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/customer-service/**'
+
+order-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/order-service/**'
+
+audit-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/audit-service/**'
+
+notification-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/notification-service/**'
+
+reporting-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/reporting-service/**'
+
+analytics-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/analytics-service/**'
+
+data-export-service:
+  - changed-files:
+    - any-glob-to-any-file: 'services/data-export-service/**'
+
+api-gateway:
+  - changed-files:
+    - any-glob-to-any-file: 'services/api-gateway/**'
+
+common:
+  - changed-files:
+    - any-glob-to-any-file: 'services/common/**'
+
+desktop-client:
+  - changed-files:
+    - any-glob-to-any-file: 'desktop-client/**'
+
+# --- Cross-cutting concerns ---
+
+infrastructure:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'infrastructure/**'
+      - 'docker-compose.yml'
+      - 'Makefile'
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file: '.github/workflows/**'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'docs/**'
+      - '*.md'
+      - '.github/pull_request_template.md'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/pom.xml'
+      - '.github/dependabot.yml'
+
+database:
+  - changed-files:
+    - any-glob-to-any-file: '**/resources/db/migration/**'
+
+configuration:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/application*.yml'
+      - '**/application*.properties'
+      - '.env.example'
+
+security:
+  - changed-files:
+    - any-glob-to-any-file: 'SECURITY.md'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file: '**/*Test.java'

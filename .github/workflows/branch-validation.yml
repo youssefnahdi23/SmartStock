@@ -1,0 +1,45 @@
+name: Branch Name Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [ opened, reopened ]
+
+jobs:
+  validate-branch-name:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate Branch Name
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          echo "Branch name: $BRANCH"
+
+          # Allow Dependabot and release-please branches
+          if echo "$BRANCH" | grep -qE '^(dependabot/|release-please-)'; then
+            echo "✅ Automated branch detected — skipping validation."
+            exit 0
+          fi
+
+          # Enforce conventional branch naming:
+          # feature/<description>, fix/<description>, docs/<description>,
+          # test/<description>, refactor/<description>, chore/<description>,
+          # ci/<description>, perf/<description>, hotfix/<description>,
+          # release/<version>
+          PATTERN='^(feature|fix|docs|test|refactor|chore|ci|perf|hotfix|release)/.+'
+
+          if echo "$BRANCH" | grep -qE "$PATTERN"; then
+            echo "✅ Branch name '$BRANCH' follows the naming convention."
+          else
+            echo "❌ Branch name '$BRANCH' does not follow the naming convention."
+            echo ""
+            echo "Required format: <type>/<description>"
+            echo "Allowed types: feature, fix, docs, test, refactor, chore, ci, perf, hotfix, release"
+            echo ""
+            echo "Examples:"
+            echo "  feature/add-product-barcode-support"
+            echo "  fix/jwt-token-expiration-bug"
+            echo "  docs/update-api-documentation"
+            echo "  refactor/inventory-service-domain-layer"
+            exit 1
+          fi

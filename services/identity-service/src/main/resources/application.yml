@@ -1,11 +1,6 @@
 spring:
   application:
     name: identity-service
-    version: 1.0.0
-
-  profiles:
-    active: ${SPRING_PROFILE:dev}
-
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:smartstock_identity}
     username: ${DB_USER:smartstock}
@@ -16,44 +11,30 @@ spring:
       connection-timeout: 20000
       idle-timeout: 300000
       max-lifetime: 1200000
-
   jpa:
     hibernate:
       ddl-auto: validate
+    open-in-view: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
         jdbc:
-          batch_size: 20
-          fetch_size: 50
-        order_inserts: true
-        order_updates: true
-        generate_statistics: false
-
+          time_zone: UTC
   flyway:
     enabled: true
-    baselineOnMigrate: true
     locations: classpath:db/migration
-    schemas: public
-
   jackson:
-    serialization:
-      write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: false
-
-  security:
-    user:
-      name: admin
-      password: ${ADMIN_PASSWORD:admin123}
+    serialization:
+      write-dates-as-timestamps: false
 
 server:
   port: ${SERVER_PORT:8081}
-  servlet:
-    context-path: /api/v1
   error:
-    include-message: always
-    include-binding-errors: always
+    include-message: never
+    include-binding-errors: never
     include-stacktrace: never
     include-exception: false
 
@@ -61,34 +42,59 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: when-authorized
-  metrics:
-    export:
-      prometheus:
-        enabled: true
 
 logging:
   level:
     root: INFO
-    com.smartstock: DEBUG
-    org.springframework.security: DEBUG
+    com.smartstock.identity: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-  file:
-    name: logs/identity-service.log
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} level=%p service=identity-service requestId=%X{requestId:-} correlationId=%X{correlationId:-} userId=%X{userId:-} logger=%logger{36} msg=%m%n"
 
 app:
-  jwt:
-    secret: ${JWT_SECRET:your-secret-key-change-in-production-at-least-256-bits}
-    access-token-expiration-ms: 900000
-    refresh-token-expiration-ms: 604800000
   security:
+    jwt:
+      issuer: ${JWT_ISSUER:smartstock-auth}
+      audience: ${JWT_AUDIENCE:smartstock-api}
+      access-token-validity: PT1H
+      refresh-token-validity: P30D
+      generate-key-pair: ${JWT_GENERATE_KEY_PAIR:true}
+      private-key: ${JWT_PRIVATE_KEY:}
+      public-key: ${JWT_PUBLIC_KEY:}
+    password:
+      bcrypt-strength: 12
+      minimum-length: 12
+      require-uppercase: true
+      require-lowercase: true
+      require-digit: true
+      require-special-character: true
+      history-size: 5
+      expiration: P90D
+    login-attempts:
+      max-attempts: 5
+      lockout-duration: PT30M
+      reset-window: PT30M
+    rate-limit:
+      login-max-requests: 20
+      login-window: PT1M
     cors:
-      allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:8080}
-      allowed-methods: GET,POST,PUT,DELETE,OPTIONS
-      allowed-headers: "*"
+      allowed-origins:
+        - ${CORS_ORIGIN_DESKTOP:http://localhost:3000}
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowed-headers:
+        - Authorization
+        - Content-Type
+        - X-Request-Id
+        - X-Correlation-Id
+      exposed-headers:
+        - X-Request-Id
+        - X-Correlation-Id
       allow-credentials: true

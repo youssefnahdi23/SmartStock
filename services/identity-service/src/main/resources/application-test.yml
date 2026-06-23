@@ -1,0 +1,39 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartstock_identity_test
+    username: smartstock
+    password: smartstock
+  flyway:
+    enabled: false
+  jpa:
+    open-in-view: false
+
+logging:
+  level:
+    root: WARN
+    com.smartstock.identity: DEBUG
+
+app:
+  security:
+    jwt:
+      issuer: smartstock-auth-test
+      audience: smartstock-api-test
+      access-token-validity: PT15M
+      refresh-token-validity: P7D
+      generate-key-pair: true
+    password:
+      bcrypt-strength: 4
+      minimum-length: 12
+      require-uppercase: true
+      require-lowercase: true
+      require-digit: true
+      require-special-character: true
+      history-size: 5
+      expiration: P90D
+    login-attempts:
+      max-attempts: 5
+      lockout-duration: PT30M
+      reset-window: PT30M
+    rate-limit:
+      login-max-requests: 100
+      login-window: PT1M

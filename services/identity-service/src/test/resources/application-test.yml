@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: smartstock-identity-service
+  
+  datasource:
+    url: jdbc:tc:postgresql:15:///smartstock_identity_test
+    username: test
+    password: test
+    hikari:
+      maximum-pool-size: 10
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQL10Dialect
+  
+  flyway:
+    enabled: false
+
+jwt:
+  secret-key: test-secret-key-minimum-256-bits-test-secret-key-minimum-256-bits
+  access-token-expiration: 3600
+  refresh-token-expiration: 2592000
+
+server:
+  port: 8001
+
+logging:
+  level:
+    root: WARN
+    com.smartstock: DEBUG

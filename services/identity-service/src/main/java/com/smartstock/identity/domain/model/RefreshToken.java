@@ -1,69 +1,104 @@
 package com.smartstock.identity.domain.model;
 
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
-/**
- * RefreshToken entity - Token persistence and revocation.
- * Used for secure token refresh without requiring password.
- * Supports token revocation and expiration.
- */
 @Entity
-@Table(name = "refresh_tokens", indexes = {
-        @Index(name = "idx_token", columnList = "token", unique = true),
-        @Index(name = "idx_user_id", columnList = "user_id"),
-        @Index(name = "idx_expiry", columnList = "expires_at")
-})
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Table(name = "refresh_tokens")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken {
+
     @Id
-    private String id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-    @Column(nullable = false, unique = true, length = 500)
-    private String token;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(nullable = false)
-    private String userId;
+    @Column(name = "token_id", nullable = false, unique = true, length = 64)
+    private String tokenId;
 
-    @Column(nullable = false)
-    private LocalDateTime expiresAt;
+    @Column(name = "token_hash", nullable = false, unique = true, length = 64)
+    private String tokenHash;
 
-    @Column(nullable = false)
-    private boolean revoked;
+    @Column(name = "expires_at", nullable = false)
+    private Instant expiresAt;
 
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "issued_at", nullable = false)
+    private Instant issuedAt;
 
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "last_used_at")
+    private Instant lastUsedAt;
+
+    @Column(name = "revoked_at")
+    private Instant revokedAt;
+
+    @Column(name = "issued_ip", length = 64)
+    private String issuedIp;
+
+    @Column(name = "user_agent", length = 500)
+    private String userAgent;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    public RefreshToken(User user,
+                        String tokenId,
+                        String tokenHash,
+                        Instant expiresAt,
+                        Instant issuedAt,
+                        String issuedIp,
+                        String userAgent) {
+        this.user = user;
+        this.tokenId = tokenId;
+        this.tokenHash = tokenHash;
+        this.expiresAt = expiresAt;
+        this.issuedAt = issuedAt;
+        this.issuedIp = issuedIp;
+        this.userAgent = userAgent;
+    }
 
     @PrePersist
-    protected void onCreate() {
-        this.id = UUID.randomUUID().toString();
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-        this.revoked = false;
+    void onCreate() {
+        Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
     @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
+    void onUpdate() {
+        this.updatedAt = Instant.now();
     }
 
-    public boolean isValid() {
-        return !revoked && LocalDateTime.now().isBefore(expiresAt);
+    public boolean isActive(Clock clock) {
+        return revokedAt == null && expiresAt.isAfter(clock.instant());
     }
 
-    public void revoke() {
-        this.revoked = true;
-        this.updatedAt = LocalDateTime.now();
+    public void markUsed(Instant usedAt) {
+        this.lastUsedAt = usedAt;
+    }
+
+    public void revoke(Instant revokedAt) {
+        this.revokedAt = revokedAt;
     }
 }

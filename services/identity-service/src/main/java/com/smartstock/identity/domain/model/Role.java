@@ -1,73 +1,102 @@
 package com.smartstock.identity.domain.model;
 
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
-import java.util.HashSet;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import java.time.Instant;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
-/**
- * Role entity - RBAC model.
- * Each role contains a set of permissions.
- * Multiple users can have the same role.
- */
 @Entity
-@Table(name = "roles", indexes = {
-        @Index(name = "idx_role_name", columnList = "name", unique = true)
-})
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Table(name = "roles")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Role {
-    @Id
-    private String id;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false, unique = true, length = 64)
     private String name;
 
-    @Column(length = 500)
+    @Column(nullable = false, length = 255)
     private String description;
+
+    @Column(name = "hierarchy_rank", nullable = false)
+    private int hierarchyRank;
 
     @Column(nullable = false)
     private boolean active;
 
-    @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "system_managed", nullable = false)
+    private boolean systemManaged;
 
-    @Column(nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.MERGE)
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "role_permissions",
             joinColumns = @JoinColumn(name = "role_id"),
             inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
-    private Set<Permission> permissions = new HashSet<>();
+    private Set<Permission> permissions = new LinkedHashSet<>();
+
+    public Role(String name, String description, int hierarchyRank, boolean systemManaged, Collection<Permission> permissions) {
+        this.name = name.trim().toUpperCase();
+        this.description = description;
+        this.hierarchyRank = hierarchyRank;
+        this.active = true;
+        this.systemManaged = systemManaged;
+        replacePermissions(permissions);
+    }
 
     @PrePersist
-    protected void onCreate() {
-        this.id = UUID.randomUUID().toString();
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-        this.active = true;
+    void onCreate() {
+        Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
     @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
+    void onUpdate() {
+        this.updatedAt = Instant.now();
     }
 
-    public void addPermission(Permission permission) {
-        this.permissions.add(permission);
+    public void update(String name, String description, int hierarchyRank, boolean active, Collection<Permission> permissions) {
+        this.name = name.trim().toUpperCase();
+        this.description = description;
+        this.hierarchyRank = hierarchyRank;
+        this.active = active;
+        replacePermissions(permissions);
     }
 
-    public void removePermission(Permission permission) {
-        this.permissions.remove(permission);
+    public void replacePermissions(Collection<Permission> updatedPermissions) {
+        this.permissions.clear();
+        if (updatedPermissions != null) {
+            this.permissions.addAll(updatedPermissions);
+        }
+    }
+
+    public void deactivate() {
+        this.active = false;
     }
 }

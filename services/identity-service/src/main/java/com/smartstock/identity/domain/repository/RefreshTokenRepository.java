@@ -1,24 +1,24 @@
 package com.smartstock.identity.domain.repository;
 
 import com.smartstock.identity.domain.model.RefreshToken;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-import java.util.Optional;
 
-/**
- * RefreshToken repository - Token management and revocation.
- */
-@Repository
-public interface RefreshTokenRepository extends JpaRepository<RefreshToken, String> {
+public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
 
-    @Query("SELECT rt FROM RefreshToken rt WHERE rt.token = :token AND rt.revoked = false")
-    Optional<RefreshToken> findByTokenAndNotRevoked(@Param("token") String token);
+    Optional<RefreshToken> findByTokenHash(String tokenHash);
 
-    @Query("SELECT rt FROM RefreshToken rt WHERE rt.userId = :userId AND rt.revoked = false")
-    Optional<RefreshToken> findActiveTokenByUserId(@Param("userId") String userId);
-
-    @Query("DELETE FROM RefreshToken rt WHERE rt.userId = :userId")
-    void revokeAllUserTokens(@Param("userId") String userId);
+    @Modifying
+    @Query("""
+            update RefreshToken token
+               set token.revokedAt = :revokedAt
+             where token.user.id = :userId
+               and token.revokedAt is null
+            """)
+    void revokeActiveTokens(@Param("userId") UUID userId, @Param("revokedAt") Instant revokedAt);
 }

@@ -1,22 +1,19 @@
 package com.smartstock.identity.domain.repository;
 
 import com.smartstock.identity.domain.model.Permission;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 
-/**
- * Permission repository - Data access for Permission entity.
- */
-@Repository
-public interface PermissionRepository extends JpaRepository<Permission, String> {
+public interface PermissionRepository extends JpaRepository<Permission, UUID> {
 
-    @Query("SELECT p FROM Permission p WHERE p.code = :code AND p.active = true")
-    Optional<Permission> findByCodeAndActive(@Param("code") String code);
+    Optional<Permission> findByPermissionKeyIgnoreCase(String permissionKey);
 
-    @Query("SELECT p FROM Permission p WHERE p.resource = :resource AND p.action = :action AND p.active = true")
-    Optional<Permission> findByResourceAndActionAndActive(@Param("resource") String resource,
-                                                          @Param("action") String action);
+    List<Permission> findByIdIn(Collection<UUID> ids);
+
+    Page<Permission> findAllByActiveTrue(Pageable pageable);
 }

@@ -51,4 +51,17 @@
         </dependency>
     </dependencies>
 
+    <build>
+        <plugins>
+            <!-- common is a library JAR; skip Spring Boot executable repackaging -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
 </project>

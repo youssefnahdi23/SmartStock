@@ -33,6 +33,7 @@
         <module>data-export-service</module>
         <module>analytics-service</module>
         <module>common</module>
+        <module>api-gateway</module>
     </modules>
 
     <properties>

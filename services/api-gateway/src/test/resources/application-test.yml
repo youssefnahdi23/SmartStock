@@ -1,0 +1,32 @@
+spring:
+  cloud:
+    compatibility-verifier:
+      enabled: false
+    gateway:
+      # Remove default-filters (rate limiter) so context loads without Redis
+      default-filters: []
+      routes: []
+  # Disable Redis autoconfiguration in unit tests (no Docker needed)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+management:
+  tracing:
+    enabled: false
+  otlp:
+    tracing:
+      endpoint: ''
+
+app:
+  jwt:
+    secret: TestSecretKeyForUnitTestingMustBeAtLeast64BytesLongForHS512AlgorithmPaddingPaddingPadding
+    issuer: smartstock-auth
+    audience: smartstock-api
+
+logging:
+  level:
+    root: WARN
+    com.smartstock.gateway: DEBUG

@@ -1,0 +1,414 @@
+spring:
+  application:
+    name: api-gateway
+    version: 1.0.0
+
+  profiles:
+    active: ${SPRING_PROFILE:dev}
+
+  # ─── Redis (rate limiter state) ────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:smartstock123}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 1
+
+  # ─── Spring Cloud ────────────────────────────────────────────────────────────
+  # Spring Cloud 2024.0.x declares Spring Boot 3.4.x as required, but the
+  # platform has standardised on 3.3.1. The gateway is the only service that
+  # activates the Spring Cloud context, so we suppress the version-check here.
+  cloud:
+    compatibility-verifier:
+      enabled: false
+    gateway:
+      # Global default filters applied to every route
+      default-filters:
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: ${RATE_LIMIT_REPLENISH:100}
+            redis-rate-limiter.burstCapacity: ${RATE_LIMIT_BURST:200}
+            redis-rate-limiter.requestedTokens: 1
+            key-resolver: "#{@userOrIpKeyResolver}"
+        - name: CircuitBreaker
+          args:
+            name: defaultCircuitBreaker
+            fallbackUri: forward:/fallback
+
+      routes:
+        # ──────────────────────────────────────────────────────────────────────
+        # IDENTITY SERVICE  (port 8001)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: identity-auth
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8001}
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: identityCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        - id: identity-service
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8001}
+          predicates:
+            - Path=/api/v1/users/**, /api/v1/roles/**, /api/v1/permissions/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: identityCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # PRODUCT SERVICE  (port 8002)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: product-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8002}
+          predicates:
+            - Path=/api/v1/products/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: productCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # INVENTORY SERVICE  (port 8003)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: inventory-service
+          uri: ${INVENTORY_SERVICE_URL:http://localhost:8003}
+          predicates:
+            - Path=/api/v1/inventory/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: inventoryCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # WAREHOUSE SERVICE  (port 8004)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: warehouse-service
+          uri: ${WAREHOUSE_SERVICE_URL:http://localhost:8004}
+          predicates:
+            - Path=/api/v1/warehouses/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: warehouseCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # SUPPLIER SERVICE  (port 8005)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: supplier-service
+          uri: ${SUPPLIER_SERVICE_URL:http://localhost:8005}
+          predicates:
+            - Path=/api/v1/suppliers/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: supplierCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # CUSTOMER SERVICE  (port 8006)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: customer-service
+          uri: ${CUSTOMER_SERVICE_URL:http://localhost:8006}
+          predicates:
+            - Path=/api/v1/customers/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: customerCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # ORDER SERVICE  (port 8007)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: order-service
+          uri: ${ORDER_SERVICE_URL:http://localhost:8007}
+          predicates:
+            - Path=/api/v1/orders/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: orderCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # AUDIT SERVICE  (port 8008)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: audit-service
+          uri: ${AUDIT_SERVICE_URL:http://localhost:8008}
+          predicates:
+            - Path=/api/v1/audit/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auditCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # NOTIFICATION SERVICE  (port 8009)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8009}
+          predicates:
+            - Path=/api/v1/notifications/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: notificationCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # REPORTING SERVICE  (port 8010)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: reporting-service
+          uri: ${REPORTING_SERVICE_URL:http://localhost:8010}
+          predicates:
+            - Path=/api/v1/reports/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: reportingCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # DATA EXPORT SERVICE  (port 8011)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: data-export-service
+          uri: ${DATA_EXPORT_SERVICE_URL:http://localhost:8011}
+          predicates:
+            - Path=/api/v1/exports/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: dataExportCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # ANALYTICS SERVICE  (port 8012)
+        # ──────────────────────────────────────────────────────────────────────
+        - id: analytics-service
+          uri: ${ANALYTICS_SERVICE_URL:http://localhost:8012}
+          predicates:
+            - Path=/api/v1/analytics/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: analyticsCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # ──────────────────────────────────────────────────────────────────────
+        # SWAGGER AGGREGATION — proxy each service's api-docs through the gateway
+        # so the aggregated UI at /swagger-ui.html can load all specs.
+        # ──────────────────────────────────────────────────────────────────────
+        - id: identity-api-docs
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8001}
+          predicates:
+            - Path=/api-docs/identity
+          filters:
+            - RewritePath=/api-docs/identity, /api/v1/api-docs
+
+        - id: product-api-docs
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8002}
+          predicates:
+            - Path=/api-docs/product
+          filters:
+            - RewritePath=/api-docs/product, /api/v1/api-docs
+
+        - id: inventory-api-docs
+          uri: ${INVENTORY_SERVICE_URL:http://localhost:8003}
+          predicates:
+            - Path=/api-docs/inventory
+          filters:
+            - RewritePath=/api-docs/inventory, /api/v1/api-docs
+
+        - id: warehouse-api-docs
+          uri: ${WAREHOUSE_SERVICE_URL:http://localhost:8004}
+          predicates:
+            - Path=/api-docs/warehouse
+          filters:
+            - RewritePath=/api-docs/warehouse, /api/v1/api-docs
+
+        - id: supplier-api-docs
+          uri: ${SUPPLIER_SERVICE_URL:http://localhost:8005}
+          predicates:
+            - Path=/api-docs/supplier
+          filters:
+            - RewritePath=/api-docs/supplier, /api/v1/api-docs
+
+        - id: customer-api-docs
+          uri: ${CUSTOMER_SERVICE_URL:http://localhost:8006}
+          predicates:
+            - Path=/api-docs/customer
+          filters:
+            - RewritePath=/api-docs/customer, /api/v1/api-docs
+
+        - id: order-api-docs
+          uri: ${ORDER_SERVICE_URL:http://localhost:8007}
+          predicates:
+            - Path=/api-docs/order
+          filters:
+            - RewritePath=/api-docs/order, /api/v1/api-docs
+
+        - id: analytics-api-docs
+          uri: ${ANALYTICS_SERVICE_URL:http://localhost:8012}
+          predicates:
+            - Path=/api-docs/analytics
+          filters:
+            - RewritePath=/api-docs/analytics, /api/v1/api-docs
+
+      # Global resilience defaults
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 30s
+
+  # ─── Jackson ────────────────────────────────────────────────────────────────
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+
+# ─── Server ──────────────────────────────────────────────────────────────────
+server:
+  port: ${SERVER_PORT:8080}
+
+# ─── Actuator / Management ───────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics,gateway
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    gateway:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: api-gateway
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  # ─── OpenTelemetry / Distributed Tracing ──────────────────────────────────
+  tracing:
+    sampling:
+      probability: ${OTEL_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}/v1/traces
+
+# ─── Logging ─────────────────────────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.smartstock.gateway: DEBUG
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: INFO
+  pattern:
+    console: '{"timestamp":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%level","service":"api-gateway","traceId":"%X{traceId}","spanId":"%X{spanId}","logger":"%logger{36}","message":"%msg","thread":"%thread"}%n'
+    file: '{"timestamp":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%level","service":"api-gateway","traceId":"%X{traceId}","spanId":"%X{spanId}","logger":"%logger{36}","message":"%msg","thread":"%thread"}%n'
+  file:
+    name: logs/api-gateway.log
+
+# ─── Resilience4j Circuit Breaker ────────────────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 30s
+        failureRateThreshold: 50
+        slowCallRateThreshold: 100
+        slowCallDurationThreshold: 10s
+    instances:
+      defaultCircuitBreaker:
+        baseConfig: default
+      identityCircuitBreaker:
+        baseConfig: default
+      productCircuitBreaker:
+        baseConfig: default
+      inventoryCircuitBreaker:
+        baseConfig: default
+      warehouseCircuitBreaker:
+        baseConfig: default
+      supplierCircuitBreaker:
+        baseConfig: default
+      customerCircuitBreaker:
+        baseConfig: default
+      orderCircuitBreaker:
+        baseConfig: default
+      auditCircuitBreaker:
+        baseConfig: default
+      notificationCircuitBreaker:
+        baseConfig: default
+      reportingCircuitBreaker:
+        baseConfig: default
+      dataExportCircuitBreaker:
+        baseConfig: default
+      analyticsCircuitBreaker:
+        baseConfig: default
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 30s
+
+# ─── SpringDoc / Swagger Aggregation ─────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    display-request-duration: true
+    filter: true
+    deep-linking: true
+    # Each entry references a gateway route that proxies to the downstream service's api-docs
+    urls:
+      - name: Identity Service
+        url: /api-docs/identity
+      - name: Product Service
+        url: /api-docs/product
+      - name: Inventory Service
+        url: /api-docs/inventory
+      - name: Warehouse Service
+        url: /api-docs/warehouse
+      - name: Supplier Service
+        url: /api-docs/supplier
+      - name: Customer Service
+        url: /api-docs/customer
+      - name: Order Service
+        url: /api-docs/order
+      - name: Analytics Service
+        url: /api-docs/analytics
+    urls-primary-name: Identity Service
+
+# ─── Application ─────────────────────────────────────────────────────────────
+app:
+  jwt:
+    secret: ${JWT_SECRET:SmartStockIdentityServiceSecretKeyForHS512JWTTokenSigningMustBe64BytesMinimumForSecurity2026}
+    issuer: smartstock-auth
+    audience: smartstock-api

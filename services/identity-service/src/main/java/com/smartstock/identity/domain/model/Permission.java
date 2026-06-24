@@ -1,51 +1,61 @@
 package com.smartstock.identity.domain.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * Permission entity - Granular access control.
- * Each permission represents a specific action or resource access.
- */
 @Entity
 @Table(name = "permissions", indexes = {
-        @Index(name = "idx_perm_code", columnList = "code", unique = true)
+        @Index(name = "idx_permissions_resource",  columnList = "resource"),
+        @Index(name = "idx_permissions_is_active", columnList = "is_active")
 })
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class Permission {
+
     @Id
     private String id;
 
-    @Column(nullable = false, unique = true, length = 100)
-    private String code;
+    @Column(nullable = false, unique = true, length = 255)
+    private String name;
 
-    @Column(length = 255)
+    @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 255)
     private String resource;
 
     @Column(nullable = false, length = 50)
     private String action;
 
-    @Column(nullable = false)
+    @Column(name = "is_active", nullable = false)
     private boolean active;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
-        this.id = UUID.randomUUID().toString();
+        if (this.id == null) {
+            this.id = UUID.randomUUID().toString();
+        }
         this.createdAt = LocalDateTime.now();
-        this.active = true;
+        this.updatedAt = LocalDateTime.now();
+        if (!this.active) {
+            this.active = true;
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

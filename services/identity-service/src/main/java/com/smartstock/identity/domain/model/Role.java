@@ -1,39 +1,41 @@
 package com.smartstock.identity.domain.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * Role entity - RBAC model.
- * Each role contains a set of permissions.
- * Multiple users can have the same role.
- */
 @Entity
 @Table(name = "roles", indexes = {
-        @Index(name = "idx_role_name", columnList = "name", unique = true)
+        @Index(name = "idx_roles_name",      columnList = "name",      unique = true),
+        @Index(name = "idx_roles_is_active", columnList = "is_active")
 })
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class Role {
+
     @Id
     private String id;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, unique = true, length = 255)
     private String name;
 
-    @Column(length = 500)
+    @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(nullable = false)
+    @Column(name = "parent_role_id")
+    private String parentRoleId;
+
+    @Column(name = "is_system_role", nullable = false)
+    private boolean systemRole;
+
+    @Column(name = "is_active", nullable = false)
     private boolean active;
 
     @Column(nullable = false, updatable = false)
@@ -42,20 +44,25 @@ public class Role {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.MERGE)
+    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.PERSIST})
     @JoinTable(
             name = "role_permissions",
-            joinColumns = @JoinColumn(name = "role_id"),
+            joinColumns        = @JoinColumn(name = "role_id"),
             inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
+    @Builder.Default
     private Set<Permission> permissions = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {
-        this.id = UUID.randomUUID().toString();
+        if (this.id == null) {
+            this.id = UUID.randomUUID().toString();
+        }
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
-        this.active = true;
+        if (!this.active) {
+            this.active = true;
+        }
     }
 
     @PreUpdate

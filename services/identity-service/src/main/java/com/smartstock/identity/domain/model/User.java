@@ -1,31 +1,26 @@
 package com.smartstock.identity.domain.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * User aggregate root.
- * Manages user authentication and role assignment.
- * Each user has multiple roles, each with specific permissions.
- */
 @Entity
 @Table(name = "users", indexes = {
-        @Index(name = "idx_email", columnList = "email", unique = true),
-        @Index(name = "idx_username", columnList = "username", unique = true),
-        @Index(name = "idx_active", columnList = "active")
+        @Index(name = "idx_users_email",     columnList = "email",    unique = true),
+        @Index(name = "idx_users_username",  columnList = "username", unique = true),
+        @Index(name = "idx_users_is_active", columnList = "is_active")
 })
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class User {
+
     @Id
     private String id;
 
@@ -36,22 +31,37 @@ public class User {
     private String email;
 
     @Column(nullable = false, length = 255)
+    private String passwordHash;
+
+    @Column(nullable = false, length = 255)
     private String firstName;
 
     @Column(nullable = false, length = 255)
     private String lastName;
 
-    @Column(nullable = false, length = 255)
-    private String passwordHash;
+    @Column(length = 20)
+    private String phoneNumber;
 
+    @Builder.Default
+    @Column(name = "is_active", nullable = false)
+    private boolean active = true;
+
+    @Builder.Default
     @Column(nullable = false)
-    private boolean active;
+    private boolean emailVerified = false;
 
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
+    @Column(name = "password_changed_at")
+    private LocalDateTime passwordChangedAt;
+
+    @Builder.Default
     @Column(nullable = false)
-    private boolean emailVerified;
+    private int failedLoginAttempts = 0;
 
-    @Column(name = "last_login")
-    private LocalDateTime lastLogin;
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -62,21 +72,22 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.MERGE)
+    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.PERSIST})
     @JoinTable(
             name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
+            joinColumns    = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
+    @Builder.Default
     private Set<Role> roles = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {
-        this.id = UUID.randomUUID().toString();
+        if (this.id == null) {
+            this.id = UUID.randomUUID().toString();
+        }
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
-        this.active = true;
-        this.emailVerified = false;
     }
 
     @PreUpdate
@@ -99,9 +110,37 @@ public class User {
     public void softDelete() {
         this.deletedAt = LocalDateTime.now();
         this.active = false;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void recordLogin() {
-        this.lastLogin = LocalDateTime.now();
+        this.lastLoginAt = LocalDateTime.now();
+        this.failedLoginAttempts = 0;
+        this.lockedUntil = null;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void recordFailedLogin() {
+        this.failedLoginAttempts++;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void lock(LocalDateTime until) {
+        this.lockedUntil = until;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void unlock() {
+        this.lockedUntil = null;
+        this.failedLoginAttempts = 0;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isAccountLocked() {
+        return this.lockedUntil != null && LocalDateTime.now().isBefore(this.lockedUntil);
+    }
+
+    public String getFullName() {
+        return firstName + " " + lastName;
     }
 }

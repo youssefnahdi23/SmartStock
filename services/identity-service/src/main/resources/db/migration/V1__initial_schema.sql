@@ -1,166 +1,191 @@
 -- V1__initial_schema.sql
--- Initial schema for Identity Service
--- Creates tables for users, roles, permissions, and tokens
+-- Identity Service: complete schema for authentication, RBAC, tokens, and audit
+-- Follows database spec docs/database/1-IDENTITY-SERVICE.md
 
--- Create ENUM types
-CREATE TYPE user_status AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
-CREATE TYPE audit_action AS ENUM ('CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'REFRESH_TOKEN');
-
--- Permissions table
+-- ============================================================
+-- PERMISSIONS
+-- ============================================================
 CREATE TABLE permissions (
-    id VARCHAR(36) PRIMARY KEY,
-    code VARCHAR(100) NOT NULL UNIQUE,
-    description VARCHAR(255),
-    resource VARCHAR(50) NOT NULL,
-    action VARCHAR(50) NOT NULL,
-    active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT permissions_code_check CHECK (code ~* '^[A-Z0-9_]+$')
+    id          VARCHAR(36)  PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
+    resource    VARCHAR(255) NOT NULL,
+    action      VARCHAR(50)  NOT NULL,
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_permission_action CHECK (action IN ('CREATE','READ','UPDATE','DELETE','EXECUTE','MANAGE','READ_WRITE'))
 );
 
-CREATE INDEX idx_perm_code ON permissions(code);
-CREATE INDEX idx_perm_active ON permissions(active);
+CREATE INDEX idx_permissions_resource  ON permissions(resource);
+CREATE INDEX idx_permissions_action    ON permissions(action);
+CREATE INDEX idx_permissions_is_active ON permissions(is_active);
 
--- Roles table
+-- ============================================================
+-- ROLES
+-- ============================================================
 CREATE TABLE roles (
-    id VARCHAR(36) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    description VARCHAR(500),
-    active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT roles_name_check CHECK (name ~* '^[A-Z0-9_]+$')
+    id             VARCHAR(36)  PRIMARY KEY,
+    name           VARCHAR(255) NOT NULL UNIQUE,
+    description    TEXT,
+    parent_role_id VARCHAR(36)  REFERENCES roles(id),
+    is_system_role BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_role_name ON roles(name);
-CREATE INDEX idx_role_active ON roles(active);
+CREATE INDEX idx_roles_name           ON roles(name);
+CREATE INDEX idx_roles_is_active      ON roles(is_active);
+CREATE INDEX idx_roles_parent_role_id ON roles(parent_role_id);
 
--- Role-Permission junction table
+-- ============================================================
+-- ROLE → PERMISSION MAPPING
+-- ============================================================
 CREATE TABLE role_permissions (
-    role_id VARCHAR(36) NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    role_id       VARCHAR(36) NOT NULL REFERENCES roles(id)       ON DELETE CASCADE,
     permission_id VARCHAR(36) NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    granted_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (role_id, permission_id)
 );
 
-CREATE INDEX idx_role_perms_role ON role_permissions(role_id);
-CREATE INDEX idx_role_perms_perm ON role_permissions(permission_id);
+CREATE INDEX idx_role_permissions_role_id       ON role_permissions(role_id);
+CREATE INDEX idx_role_permissions_permission_id ON role_permissions(permission_id);
 
--- Users table
+-- ============================================================
+-- USERS
+-- ============================================================
 CREATE TABLE users (
-    id VARCHAR(36) PRIMARY KEY,
-    username VARCHAR(100) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    first_name VARCHAR(255) NOT NULL,
-    last_name VARCHAR(255) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    active BOOLEAN NOT NULL DEFAULT TRUE,
-    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    last_login TIMESTAMP,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP,
-    CONSTRAINT users_email_check CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$'),
-    CONSTRAINT users_username_check CHECK (LENGTH(username) >= 3)
+    id                     VARCHAR(36)  PRIMARY KEY,
+    username               VARCHAR(100) NOT NULL UNIQUE,
+    email                  VARCHAR(255) NOT NULL UNIQUE,
+    password_hash          VARCHAR(255) NOT NULL,
+    first_name             VARCHAR(255) NOT NULL,
+    last_name              VARCHAR(255) NOT NULL,
+    phone_number           VARCHAR(20),
+    is_active              BOOLEAN      NOT NULL DEFAULT TRUE,
+    email_verified         BOOLEAN      NOT NULL DEFAULT FALSE,
+    last_login_at          TIMESTAMPTZ,
+    password_changed_at    TIMESTAMPTZ,
+    failed_login_attempts  INT          NOT NULL DEFAULT 0,
+    locked_until           TIMESTAMPTZ,
+    created_at             TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at             TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at             TIMESTAMPTZ,
+    CONSTRAINT chk_password_hash_not_empty CHECK (password_hash <> ''),
+    CONSTRAINT chk_email_format CHECK (email ~* '^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$'),
+    CONSTRAINT chk_username_length CHECK (LENGTH(username) >= 3)
 );
 
-CREATE INDEX idx_email ON users(email) WHERE deleted_at IS NULL;
-CREATE INDEX idx_username ON users(username) WHERE deleted_at IS NULL;
-CREATE INDEX idx_active ON users(active);
-CREATE INDEX idx_created_at ON users(created_at);
+CREATE INDEX idx_users_email      ON users(email)    WHERE deleted_at IS NULL;
+CREATE INDEX idx_users_username   ON users(username) WHERE deleted_at IS NULL;
+CREATE INDEX idx_users_is_active  ON users(is_active);
+CREATE INDEX idx_users_created_at ON users(created_at);
+CREATE INDEX idx_users_deleted_at ON users(deleted_at);
 
--- User-Role junction table
+-- ============================================================
+-- USER → ROLE MAPPING
+-- ============================================================
 CREATE TABLE user_roles (
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role_id VARCHAR(36) NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_id     VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id     VARCHAR(36) NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, role_id)
 );
 
-CREATE INDEX idx_user_roles_user ON user_roles(user_id);
-CREATE INDEX idx_user_roles_role ON user_roles(role_id);
+CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 
--- Refresh tokens table
+-- ============================================================
+-- REFRESH TOKENS
+-- ============================================================
 CREATE TABLE refresh_tokens (
-    id VARCHAR(36) PRIMARY KEY,
-    token VARCHAR(500) NOT NULL UNIQUE,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    expires_at TIMESTAMP NOT NULL,
-    revoked BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id         VARCHAR(36)  PRIMARY KEY,
+    token      VARCHAR(500) NOT NULL UNIQUE,
+    user_id    VARCHAR(36)  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ  NOT NULL,
+    revoked    BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_token ON refresh_tokens(token) WHERE revoked = FALSE;
-CREATE INDEX idx_user_id ON refresh_tokens(user_id) WHERE revoked = FALSE;
-CREATE INDEX idx_expiry ON refresh_tokens(expires_at) WHERE revoked = FALSE;
+CREATE INDEX idx_refresh_tokens_token      ON refresh_tokens(token)      WHERE revoked = FALSE;
+CREATE INDEX idx_refresh_tokens_user_id    ON refresh_tokens(user_id)    WHERE revoked = FALSE;
+CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at) WHERE revoked = FALSE;
 
--- Audit logs table
+-- ============================================================
+-- PASSWORD RESET TOKENS
+-- ============================================================
+CREATE TABLE password_reset_tokens (
+    id         VARCHAR(36)  PRIMARY KEY,
+    token      VARCHAR(255) NOT NULL UNIQUE,
+    user_id    VARCHAR(36)  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ  NOT NULL,
+    used       BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_prt_token      ON password_reset_tokens(token)   WHERE used = FALSE;
+CREATE INDEX idx_prt_user_id    ON password_reset_tokens(user_id) WHERE used = FALSE;
+CREATE INDEX idx_prt_expires_at ON password_reset_tokens(expires_at);
+
+-- ============================================================
+-- USER SESSIONS (for logout / token tracking)
+-- ============================================================
+CREATE TABLE user_sessions (
+    id               VARCHAR(36)  PRIMARY KEY,
+    user_id          VARCHAR(36)  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash       VARCHAR(255) NOT NULL UNIQUE,
+    ip_address       VARCHAR(45),
+    user_agent       TEXT,
+    issued_at        TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at       TIMESTAMPTZ  NOT NULL,
+    revoked_at       TIMESTAMPTZ,
+    last_activity_at TIMESTAMPTZ  DEFAULT CURRENT_TIMESTAMP,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_user_sessions_user_id    ON user_sessions(user_id);
+CREATE INDEX idx_user_sessions_token_hash ON user_sessions(token_hash);
+CREATE INDEX idx_user_sessions_expires_at ON user_sessions(expires_at);
+CREATE INDEX idx_user_sessions_revoked_at ON user_sessions(revoked_at);
+
+-- ============================================================
+-- AUDIT LOGS (immutable)
+-- ============================================================
 CREATE TABLE audit_logs (
-    id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
-    action audit_action NOT NULL,
-    resource VARCHAR(100) NOT NULL,
-    resource_id VARCHAR(36),
-    old_values TEXT,
-    new_values TEXT,
-    ip_address VARCHAR(45),
-    user_agent VARCHAR(500),
-    status VARCHAR(20) NOT NULL,
-    error_message TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id             VARCHAR(36)  PRIMARY KEY,
+    event_type     VARCHAR(100) NOT NULL,
+    entity_type    VARCHAR(100) NOT NULL,
+    entity_id      VARCHAR(36),
+    actor_id       VARCHAR(36)  REFERENCES users(id) ON DELETE SET NULL,
+    action_type    VARCHAR(50)  NOT NULL,
+    old_values     JSONB,
+    new_values     JSONB,
+    ip_address     VARCHAR(45),
+    user_agent     TEXT,
+    status         VARCHAR(50)  NOT NULL DEFAULT 'SUCCESS',
+    error_message  TEXT,
+    timestamp      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    correlation_id VARCHAR(36),
+    request_id     VARCHAR(36),
+    CONSTRAINT chk_audit_action_type CHECK (
+        action_type IN (
+            'LOGIN','LOGOUT','LOGIN_FAILED','PASSWORD_CHANGE','PASSWORD_RESET',
+            'ROLE_ASSIGNED','ROLE_REVOKED','PERMISSION_GRANTED','PERMISSION_REVOKED',
+            'SESSION_REVOKED','ACCOUNT_LOCKED','ACCOUNT_UNLOCKED','USER_CREATED',
+            'USER_UPDATED','USER_DEACTIVATED','USER_REACTIVATED'
+        )
+    )
 );
 
-CREATE INDEX idx_audit_user ON audit_logs(user_id);
-CREATE INDEX idx_audit_action ON audit_logs(action);
-CREATE INDEX idx_audit_resource ON audit_logs(resource);
-CREATE INDEX idx_audit_created_at ON audit_logs(created_at);
+CREATE INDEX idx_audit_logs_entity      ON audit_logs(entity_type, entity_id, timestamp);
+CREATE INDEX idx_audit_logs_actor_id    ON audit_logs(actor_id);
+CREATE INDEX idx_audit_logs_timestamp   ON audit_logs(timestamp);
+CREATE INDEX idx_audit_logs_event_type  ON audit_logs(event_type);
+CREATE INDEX idx_audit_logs_corr_id     ON audit_logs(correlation_id);
 
--- Insert default permissions
-INSERT INTO permissions (id, code, description, resource, action, active, created_at) VALUES
-    ('perm-001', 'USER_READ', 'Read user information', 'user', 'read', TRUE, CURRENT_TIMESTAMP),
-    ('perm-002', 'USER_CREATE', 'Create new user', 'user', 'create', TRUE, CURRENT_TIMESTAMP),
-    ('perm-003', 'USER_UPDATE', 'Update user information', 'user', 'update', TRUE, CURRENT_TIMESTAMP),
-    ('perm-004', 'USER_DELETE', 'Delete user', 'user', 'delete', TRUE, CURRENT_TIMESTAMP),
-    ('perm-005', 'ROLE_MANAGE', 'Manage roles and permissions', 'role', 'manage', TRUE, CURRENT_TIMESTAMP),
-    ('perm-006', 'PRODUCT_READ', 'Read products', 'product', 'read', TRUE, CURRENT_TIMESTAMP),
-    ('perm-007', 'PRODUCT_WRITE', 'Create/Edit products', 'product', 'write', TRUE, CURRENT_TIMESTAMP),
-    ('perm-008', 'INVENTORY_READ', 'Read inventory', 'inventory', 'read', TRUE, CURRENT_TIMESTAMP),
-    ('perm-009', 'INVENTORY_WRITE', 'Update inventory', 'inventory', 'write', TRUE, CURRENT_TIMESTAMP),
-    ('perm-010', 'ADMIN_FULL_ACCESS', 'Full system access', 'system', 'admin', TRUE, CURRENT_TIMESTAMP);
-
--- Insert default roles
-INSERT INTO roles (id, name, description, active, created_at, updated_at) VALUES
-    ('role-admin', 'ADMIN', 'System administrator with full access', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    ('role-manager', 'MANAGER', 'Manager with supervisory access', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    ('role-user', 'USER', 'Standard user with basic access', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-    ('role-viewer', 'VIEWER', 'Read-only access', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-
--- Assign permissions to roles
-INSERT INTO role_permissions (role_id, permission_id, created_at) VALUES
-    -- Admin gets all permissions
-    ('role-admin', 'perm-001', CURRENT_TIMESTAMP),
-    ('role-admin', 'perm-002', CURRENT_TIMESTAMP),
-    ('role-admin', 'perm-003', CURRENT_TIMESTAMP),
-    ('role-admin', 'perm-004', CURRENT_TIMESTAMP),
-    ('role-admin', 'perm-005', CURRENT_TIMESTAMP),
-    ('role-admin', 'perm-006', CURRENT_TIMESTAMP),
-    ('role-admin', 'perm-007', CURRENT_TIMESTAMP),
-    ('role-admin', 'perm-008', CURRENT_TIMESTAMP),
-    ('role-admin', 'perm-009', CURRENT_TIMESTAMP),
-    ('role-admin', 'perm-010', CURRENT_TIMESTAMP),
-    -- Manager gets most permissions
-    ('role-manager', 'perm-001', CURRENT_TIMESTAMP),
-    ('role-manager', 'perm-006', CURRENT_TIMESTAMP),
-    ('role-manager', 'perm-007', CURRENT_TIMESTAMP),
-    ('role-manager', 'perm-008', CURRENT_TIMESTAMP),
-    ('role-manager', 'perm-009', CURRENT_TIMESTAMP),
-    -- User gets basic permissions
-    ('role-user', 'perm-001', CURRENT_TIMESTAMP),
-    ('role-user', 'perm-006', CURRENT_TIMESTAMP),
-    ('role-user', 'perm-008', CURRENT_TIMESTAMP),
-    -- Viewer gets read-only
-    ('role-viewer', 'perm-001', CURRENT_TIMESTAMP),
-    ('role-viewer', 'perm-006', CURRENT_TIMESTAMP),
-    ('role-viewer', 'perm-008', CURRENT_TIMESTAMP);
+-- Prevent updates/deletes on audit_logs (immutability enforcement)
+CREATE OR REPLACE RULE audit_logs_no_update AS ON UPDATE TO audit_logs DO INSTEAD NOTHING;
+CREATE OR REPLACE RULE audit_logs_no_delete AS ON DELETE TO audit_logs DO INSTEAD NOTHING;

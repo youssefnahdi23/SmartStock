@@ -1,36 +1,31 @@
 package com.smartstock.identity.domain.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * RefreshToken entity - Token persistence and revocation.
- * Used for secure token refresh without requiring password.
- * Supports token revocation and expiration.
- */
 @Entity
 @Table(name = "refresh_tokens", indexes = {
-        @Index(name = "idx_token", columnList = "token", unique = true),
-        @Index(name = "idx_user_id", columnList = "user_id"),
-        @Index(name = "idx_expiry", columnList = "expires_at")
+        @Index(name = "idx_refresh_tokens_token",      columnList = "token",      unique = true),
+        @Index(name = "idx_refresh_tokens_user_id",    columnList = "user_id"),
+        @Index(name = "idx_refresh_tokens_expires_at", columnList = "expires_at")
 })
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class RefreshToken {
+
     @Id
     private String id;
 
     @Column(nullable = false, unique = true, length = 500)
     private String token;
 
-    @Column(nullable = false)
+    @Column(name = "user_id", nullable = false)
     private String userId;
 
     @Column(nullable = false)
@@ -47,7 +42,9 @@ public class RefreshToken {
 
     @PrePersist
     protected void onCreate() {
-        this.id = UUID.randomUUID().toString();
+        if (this.id == null) {
+            this.id = UUID.randomUUID().toString();
+        }
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         this.revoked = false;

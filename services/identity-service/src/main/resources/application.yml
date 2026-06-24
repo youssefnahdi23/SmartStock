@@ -16,6 +16,7 @@ spring:
       connection-timeout: 20000
       idle-timeout: 300000
       max-lifetime: 1200000
+      pool-name: IdentityHikariPool
 
   jpa:
     hibernate:
@@ -32,23 +33,35 @@ spring:
 
   flyway:
     enabled: true
-    baselineOnMigrate: true
+    baseline-on-migrate: true
     locations: classpath:db/migration
     schemas: public
+    validate-on-migrate: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: identity-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
 
   jackson:
     serialization:
       write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: false
-
-  security:
-    user:
-      name: admin
-      password: ${ADMIN_PASSWORD:admin123}
+    default-property-inclusion: non_null
 
 server:
-  port: ${SERVER_PORT:8081}
+  port: ${SERVER_PORT:8001}
   servlet:
     context-path: /api/v1
   error:
@@ -61,34 +74,73 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics
+        include: health,info,prometheus,metrics,flyway
+      base-path: /actuator
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: always
+      probes:
+        enabled: true
   metrics:
     export:
       prometheus:
         enabled: true
+    tags:
+      application: identity-service
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
 
 logging:
   level:
     root: INFO
     com.smartstock: DEBUG
-    org.springframework.security: DEBUG
+    org.springframework.security: INFO
+    org.flywaydb: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: '{"timestamp":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%level","service":"identity-service","logger":"%logger{36}","message":"%msg","thread":"%thread"}%n'
+    file: '{"timestamp":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%level","service":"identity-service","logger":"%logger{36}","message":"%msg","thread":"%thread"}%n'
   file:
     name: logs/identity-service.log
 
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
 app:
   jwt:
-    secret: ${JWT_SECRET:your-secret-key-change-in-production-at-least-256-bits}
-    access-token-expiration-ms: 900000
-    refresh-token-expiration-ms: 604800000
+    # HS512 secret - min 512 bits. Override via JWT_SECRET env var in production.
+    secret: ${JWT_SECRET:SmartStockIdentityServiceSecretKeyForHS512JWTTokenSigningMustBe64BytesMinimumForSecurity2026}
+    # Access token TTL: 1 hour (3600000ms) per ADR-0005
+    access-token-expiration-ms: ${JWT_ACCESS_TTL:3600000}
+    # Refresh token TTL: 30 days (2592000000ms) per API spec
+    refresh-token-expiration-ms: ${JWT_REFRESH_TTL:2592000000}
+    issuer: smartstock-auth
+    audience: smartstock-api
+
   security:
     cors:
       allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:8080}
-      allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+      allowed-methods: GET,POST,PUT,DELETE,OPTIONS,PATCH
       allowed-headers: "*"
       allow-credentials: true
+
+    # Account lockout: 5 failures → 30 min lock (per ADR-0005)
+    max-failed-login-attempts: 5
+    lockout-duration-minutes: 30
+
+    # Password expiration: 90 days (per ADR-0005)
+    password-expiry-days: 90
+
+    # Password history: last 5 passwords (per API spec)
+    password-history-size: 5
+
+  kafka:
+    topics:
+      user-events: identity.user.events
+      auth-events: identity.auth.events

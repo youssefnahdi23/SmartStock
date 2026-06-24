@@ -1,0 +1,40 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  kafka:
+    bootstrap-servers: localhost:9092
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+logging:
+  level:
+    root: WARN
+    com.smartstock: DEBUG
+    org.flywaydb: INFO
+
+app:
+  jwt:
+    secret: TestSecretKeyForSmartStockIdentityServiceUnitTestingOnlyDoNotUseInProduction2026Long
+    access-token-expiration-ms: 3600000
+    refresh-token-expiration-ms: 2592000000
+    issuer: smartstock-auth-test
+    audience: smartstock-api-test
+  security:
+    cors:
+      allowed-origins: http://localhost:3000
+    max-failed-login-attempts: 5
+    lockout-duration-minutes: 30
+    password-expiry-days: 90
+    password-history-size: 5
+  kafka:
+    topics:
+      user-events: identity.user.events.test
+      auth-events: identity.auth.events.test

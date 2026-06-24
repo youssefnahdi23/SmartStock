@@ -2,14 +2,13 @@ package com.smartstock.identity.domain.repository;
 
 import com.smartstock.identity.domain.model.RefreshToken;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
 import java.util.Optional;
 
-/**
- * RefreshToken repository - Token management and revocation.
- */
 @Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, String> {
 
@@ -19,6 +18,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Stri
     @Query("SELECT rt FROM RefreshToken rt WHERE rt.userId = :userId AND rt.revoked = false")
     Optional<RefreshToken> findActiveTokenByUserId(@Param("userId") String userId);
 
-    @Query("DELETE FROM RefreshToken rt WHERE rt.userId = :userId")
-    void revokeAllUserTokens(@Param("userId") String userId);
+    @Modifying
+    @Query("UPDATE RefreshToken rt SET rt.revoked = true WHERE rt.userId = :userId")
+    void revokeAllByUserId(@Param("userId") String userId);
 }

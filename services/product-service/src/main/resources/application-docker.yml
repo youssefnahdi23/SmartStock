@@ -1,21 +1,13 @@
 spring:
   datasource:
-    url: jdbc:postgresql://postgres:5432/smartstock
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:smartstock_product}
     username: ${DB_USER:smartstock}
     password: ${DB_PASSWORD:smartstock}
-  
+
   kafka:
-    bootstrap-servers: kafka:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 
-server:
-  port: 8080
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus
-  metrics:
-    export:
-      prometheus:
-        enabled: true
+logging:
+  level:
+    root: INFO
+    com.smartstock: INFO

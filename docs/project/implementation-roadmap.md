@@ -72,7 +72,7 @@ The following issues were found when cross-referencing ADRs, architecture docs, 
 |---|---|---|---|---|---|---|---|
 | M0 | Infrastructure & Foundation | Complete | 0 | — | 2026-06-29 | Repo bootstrap, Compose infra, common lib, Identity domain | All infra containers start; Identity domain models compile |
 | M1 | Identity & Security Foundation | 8 weeks | 8 | 2026-06-30 | 2026-08-24 | Working Identity Service + API Gateway | Auth endpoints pass integration tests; JWT roundtrip; Gateway routes | **IMPLEMENTED** (Identity Service complete; API Gateway deferred to M2) |
-| M2 | Core Domain Services | 12 weeks | 20 | 2026-08-25 | 2026-11-17 | Product, Warehouse, Supplier, Customer services | All 4 services integrate-tested; events published; API docs generated |
+| M2 | Core Domain Services | 12 weeks | 20 | 2026-08-25 | 2026-11-17 | Product, Warehouse, Supplier, Customer services | All 4 services integrate-tested; events published; API docs generated | **Product Service IMPLEMENTED 2026-06-25 (commit 305e339); Warehouse Service IMPLEMENTED 2026-06-25 (commit 20e41fa)** |
 | M3 | Transactional Services | 10 weeks | 30 | 2026-11-18 | 2027-01-26 | Purchase Order + Sales Order with Saga | Order saga end-to-end; compensation on failure; idempotency verified |
 | M4 | Operational Intelligence | 8 weeks | 38 | 2027-01-27 | 2027-03-23 | Inventory (full) + Notification | Stock movements; low-stock alerts; saga reservation working |
 | M5 | Observability & Audit | 6 weeks | 44 | 2027-03-24 | 2027-05-04 | Audit Service + observability wiring | Audit log live; traces visible in Tempo; dashboards green |
@@ -262,10 +262,23 @@ Implement Product Service, Warehouse Service, Supplier Service, and Customer Ser
 
 ### Implementation Order Within M2
 
-Week 9–11: Product Service (most foundational — Inventory and Order services both reference productId)  
-Week 12–14: Warehouse Service (needed by Inventory for location management in M4 and M3 saga)  
+Week 9–11: Product Service (most foundational — Inventory and Order services both reference productId) **IMPLEMENTED 2026-06-25**  
+Week 12–14: Warehouse Service (needed by Inventory for location management in M4 and M3 saga) **IMPLEMENTED 2026-06-25**  
 Week 15–17: Supplier Service (needed by Purchase Order in M3)  
 Week 18–20: Customer Service (needed by Sales Order in M3)
+
+### Warehouse Service Implementation Summary (2026-06-25)
+
+- **Port:** 8004 | **Context path:** `/api/v1` | **DB:** `smartstock_warehouse`
+- **Package:** `com.smartstock.warehouse`
+- **Hierarchy:** Warehouse → Zone → Shelf → Bin (4-level location hierarchy)
+- **JWT:** HS-512 shared secret, stateless, defense-in-depth (same pattern as product-service)
+- **Permissions:** `warehouse:read`, `warehouse:write`, `warehouse:create`, `warehouse:zone:create`, `warehouse:shelf:create`, `warehouse:bin:create`, `warehouse:report`
+- **Kafka topic:** `warehouse.events` (3 partitions, key = aggregateId)
+- **Events published:** WarehouseCreated, WarehouseUpdated, WarehouseDeactivated, ZoneCreated, ShelfCreated, BinCreated, CapacityAlert
+- **Flyway:** V1 (8-table schema: warehouses, zones, shelves, bins, staff, operations, metrics, audit_logs) + V2 (seed stub)
+- **Tests:** 9/9 unit tests pass (5 WarehouseService + 3 ZoneService + 1 legacy placeholder)
+- **Build:** `mvn test -pl warehouse-service -am` → BUILD SUCCESS
 
 ### Standard Epic Structure (applied to each of the 4 services)
 

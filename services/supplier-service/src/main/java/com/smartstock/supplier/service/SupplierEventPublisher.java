@@ -34,6 +34,9 @@ public class SupplierEventPublisher {
     @Async("supplierEventExecutor")
     public void publishDeliveryRegistered(SupplierDeliveryRegisteredEvent event) { publish(event); }
 
+    @Async("supplierEventExecutor")
+    public void publishSupplierQualityIssue(SupplierQualityIssueEvent event) { publish(event); }
+
     private void publish(Object event) {
         try {
             String aggregateId = (event instanceof DomainEvent de) ? de.getAggregateId() : "unknown";

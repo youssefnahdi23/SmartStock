@@ -80,7 +80,7 @@ public class InventoryService {
 
         log.info("Stock IN: product={} warehouse={} qty={} actor={}", req.getProductId(), req.getWarehouseId(), req.getQuantity(), actorId);
         eventPublisher.publishStockIn(new StockInEvent(movement.getId(), req.getProductId(),
-                req.getWarehouseId(), req.getQuantity(), req.getUnitCost(),
+                req.getWarehouseId(), null, req.getQuantity(), req.getUnitCost(),
                 req.getReferenceType(), req.getReferenceId(), req.getSupplierId(),
                 previousBalance, level.getQuantityOnHand(), actorId));
 
@@ -126,7 +126,8 @@ public class InventoryService {
 
         log.info("Stock OUT: product={} warehouse={} qty={} actor={}", req.getProductId(), req.getWarehouseId(), req.getQuantity(), actorId);
         eventPublisher.publishStockOut(new StockOutEvent(movement.getId(), req.getProductId(),
-                req.getWarehouseId(), req.getQuantity(), req.getReferenceType(), req.getReferenceId(),
+                req.getWarehouseId(), req.getQuantity(), null, null,
+                req.getReferenceType(), req.getReferenceType(), req.getReferenceId(),
                 req.getCustomerId(), previousBalance, level.getQuantityOnHand(), actorId));
 
         if (level.isLowStock()) {

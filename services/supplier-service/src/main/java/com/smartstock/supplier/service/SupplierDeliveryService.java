@@ -7,6 +7,7 @@ import com.smartstock.supplier.api.dto.response.PagedResponse;
 import com.smartstock.supplier.api.dto.response.SupplierPerformanceResponse;
 import com.smartstock.supplier.domain.event.SupplierDeliveryRegisteredEvent;
 import com.smartstock.supplier.domain.event.SupplierPerformanceUpdatedEvent;
+import com.smartstock.supplier.domain.event.SupplierQualityIssueEvent;
 import com.smartstock.supplier.domain.model.Supplier;
 import com.smartstock.supplier.domain.model.SupplierDelivery;
 import com.smartstock.supplier.domain.model.SupplierMetrics;
@@ -95,6 +96,16 @@ public class SupplierDeliveryService {
         delivery = deliveryRepository.save(delivery);
         log.info("Delivery confirmed: supplierId={} deliveryId={} onTime={} by={}",
                 supplierId, deliveryId, delivery.getOnTime(), actorId);
+
+        int qualityIssues = delivery.getQualityIssuesFound() != null ? delivery.getQualityIssuesFound() : 0;
+        int quantityRejected = delivery.getQuantityRejected() != null ? delivery.getQuantityRejected() : 0;
+        if (qualityIssues > 0 || quantityRejected > 0) {
+            Supplier supplier = supplierService.findById(supplierId);
+            eventPublisher.publishSupplierQualityIssue(new SupplierQualityIssueEvent(
+                    supplierId, supplier.getSupplierCode(),
+                    delivery.getId(), delivery.getDeliveryNumber(),
+                    qualityIssues, quantityRejected, actorId));
+        }
 
         recalculateMetrics(supplierId, delivery.getOrderDate(), actorId);
         return toResponse(delivery);
@@ -204,9 +215,19 @@ public class SupplierDeliveryService {
         metrics.setOverallPerformanceScore(overallScore);
         metricsRepository.save(metrics);
 
+        java.util.OptionalDouble avgLeadOpt = deliveries.stream()
+                .filter(d -> d.getOrderDate() != null && d.getActualDeliveryDate() != null)
+                .mapToLong(d -> java.time.temporal.ChronoUnit.DAYS.between(d.getOrderDate(), d.getActualDeliveryDate()))
+                .average();
+        BigDecimal avgLeadTimeDays = avgLeadOpt.isPresent()
+                ? BigDecimal.valueOf(avgLeadOpt.getAsDouble()).setScale(2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
         Supplier supplier = supplierService.findById(supplierId);
         eventPublisher.publishPerformanceUpdated(new SupplierPerformanceUpdatedEvent(
-                supplierId, supplier.getSupplierCode(), metricDate, onTimeRate, qualityPassRate, overallScore));
+                supplierId, supplier.getSupplierCode(), metricDate, onTimeRate, qualityPassRate, overallScore,
+                (int) total, (int) onTimeCount, (int) (total - onTimeCount),
+                null, avgLeadTimeDays));
     }
 
     private DeliveryResponse toResponse(SupplierDelivery d) {

@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -127,6 +128,15 @@ public class WarehouseController {
 
     // ─── Shelves ───────────────────────────────────────────────
 
+    @GetMapping("/{warehouseId}/zones/{zoneId}/shelves")
+    @PreAuthorize("hasAuthority('PERMISSION_warehouse:read')")
+    @Operation(summary = "List all shelves for a zone")
+    public ResponseEntity<List<ShelfResponse>> listShelves(
+            @PathVariable String warehouseId,
+            @PathVariable String zoneId) {
+        return ResponseEntity.ok(zoneService.getShelvesForZone(warehouseId, zoneId));
+    }
+
     @PostMapping("/{warehouseId}/zones/{zoneId}/shelves")
     @Operation(summary = "Create a shelf in a zone")
     public ResponseEntity<Map<String, Object>> createShelf(
@@ -139,6 +149,16 @@ public class WarehouseController {
     }
 
     // ─── Bins ──────────────────────────────────────────────────
+
+    @GetMapping("/{warehouseId}/zones/{zoneId}/shelves/{shelfId}/bins")
+    @PreAuthorize("hasAuthority('PERMISSION_warehouse:read')")
+    @Operation(summary = "List all bins for a shelf")
+    public ResponseEntity<List<BinResponse>> listBins(
+            @PathVariable String warehouseId,
+            @PathVariable String zoneId,
+            @PathVariable String shelfId) {
+        return ResponseEntity.ok(zoneService.getBinsForShelf(warehouseId, zoneId, shelfId));
+    }
 
     @PostMapping("/{warehouseId}/zones/{zoneId}/shelves/{shelfId}/bins")
     @Operation(summary = "Create a bin in a shelf")

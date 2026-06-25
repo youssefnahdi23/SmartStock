@@ -3,7 +3,7 @@ package com.smartstock.warehouse.service;
 import com.smartstock.warehouse.api.dto.request.CreateWarehouseRequest;
 import com.smartstock.warehouse.api.dto.request.UpdateWarehouseRequest;
 import com.smartstock.warehouse.api.dto.response.*;
-import com.smartstock.warehouse.domain.event.CapacityAlertEvent;
+import com.smartstock.warehouse.domain.event.WarehouseCapacityUpdatedEvent;
 import com.smartstock.warehouse.domain.event.WarehouseCreatedEvent;
 import com.smartstock.warehouse.domain.event.WarehouseDeactivatedEvent;
 import com.smartstock.warehouse.domain.event.WarehouseUpdatedEvent;
@@ -146,11 +146,22 @@ public class WarehouseService {
             if (cap.getMaxWeight() != null) warehouse.setMaxWeightKg(BigDecimal.valueOf(cap.getMaxWeight()));
         }
 
+        boolean capacityChanged = req.getCapacity() != null;
+
         warehouse.setUpdatedBy(userId);
         Warehouse saved = warehouseRepository.save(warehouse);
 
         Map<String, Object> changes = captureSnapshot(saved);
         eventPublisher.publishWarehouseUpdated(new WarehouseUpdatedEvent(saved.getId(), userId, changes, previous));
+
+        if (capacityChanged) {
+            BigDecimal total = saved.getTotalAreaSqm() != null ? saved.getTotalAreaSqm() : BigDecimal.ZERO;
+            BigDecimal used = saved.getUsedWeightKg() != null ? saved.getUsedWeightKg() : BigDecimal.ZERO;
+            BigDecimal pct = saved.getCurrentUtilizationPercentage() != null
+                    ? saved.getCurrentUtilizationPercentage() : BigDecimal.ZERO;
+            eventPublisher.publishCapacityUpdated(new WarehouseCapacityUpdatedEvent(
+                    saved.getId(), saved.getName(), total, used, pct, userId));
+        }
 
         return toResponse(saved, false);
     }

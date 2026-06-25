@@ -104,6 +104,20 @@ public class ZoneService {
 
     // ---- SHELVES ----
 
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('warehouse:read')")
+    public List<ShelfResponse> getShelvesForZone(String warehouseId, String zoneId) {
+        if (!warehouseRepository.existsById(warehouseId)) {
+            throw new WarehouseNotFoundException(warehouseId);
+        }
+        if (!zoneRepository.findByIdAndNotDeleted(zoneId)
+                .map(z -> z.getWarehouse().getId().equals(warehouseId))
+                .orElse(false)) {
+            throw new ZoneNotFoundException(zoneId);
+        }
+        return shelfRepository.findByZoneId(zoneId).stream().map(this::toShelfResponse).toList();
+    }
+
     @Transactional
     @PreAuthorize("hasAuthority('warehouse:shelf:create')")
     public ShelfResponse createShelf(String warehouseId, String zoneId, CreateShelfRequest req, String userId) {
@@ -139,6 +153,16 @@ public class ZoneService {
     }
 
     // ---- BINS ----
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('warehouse:read')")
+    public List<BinResponse> getBinsForShelf(String warehouseId, String zoneId, String shelfId) {
+        shelfRepository.findByIdAndNotDeleted(shelfId)
+                .filter(s -> s.getZone().getId().equals(zoneId)
+                          && s.getZone().getWarehouse().getId().equals(warehouseId))
+                .orElseThrow(() -> new ShelfNotFoundException(shelfId));
+        return binRepository.findByShelfId(shelfId).stream().map(this::toBinResponse).toList();
+    }
 
     @Transactional
     @PreAuthorize("hasAuthority('warehouse:bin:create')")

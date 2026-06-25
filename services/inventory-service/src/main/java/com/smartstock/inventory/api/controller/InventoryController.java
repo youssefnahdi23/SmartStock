@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -38,6 +39,7 @@ public class InventoryController {
     @PostMapping("/stock-in")
     @Operation(summary = "Receive stock into a warehouse")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:write') and hasAuthority('PERMISSION_stock:in')")
     public ResponseEntity<Map<String, Object>> stockIn(
             @Valid @RequestBody StockInRequest request,
             @AuthenticationPrincipal SecurityUserDetails user) {
@@ -52,6 +54,7 @@ public class InventoryController {
     @PostMapping("/stock-out")
     @Operation(summary = "Dispatch stock from a warehouse")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:write') and hasAuthority('PERMISSION_stock:out')")
     public ResponseEntity<Map<String, Object>> stockOut(
             @Valid @RequestBody StockOutRequest request,
             @AuthenticationPrincipal SecurityUserDetails user) {
@@ -66,6 +69,7 @@ public class InventoryController {
     @PostMapping("/transfers")
     @Operation(summary = "Transfer stock between warehouses")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:write') and hasAuthority('PERMISSION_stock:transfer')")
     public ResponseEntity<Map<String, Object>> transfer(
             @Valid @RequestBody TransferRequest request,
             @AuthenticationPrincipal SecurityUserDetails user) {
@@ -80,6 +84,7 @@ public class InventoryController {
     @PostMapping("/adjustments")
     @Operation(summary = "Adjust stock level for a product in a warehouse")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:write') and hasAuthority('PERMISSION_stock:adjust')")
     public ResponseEntity<Map<String, Object>> adjust(
             @Valid @RequestBody AdjustmentRequest request,
             @AuthenticationPrincipal SecurityUserDetails user) {
@@ -93,6 +98,7 @@ public class InventoryController {
 
     @GetMapping("/stock/{productId}/{warehouseId}")
     @Operation(summary = "Get current stock level for a product in a warehouse")
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:read')")
     public ResponseEntity<Map<String, Object>> getStockLevel(
             @PathVariable String productId,
             @PathVariable String warehouseId) {
@@ -104,6 +110,7 @@ public class InventoryController {
 
     @GetMapping("/products/{productId}/stock")
     @Operation(summary = "Get stock levels for a product across all warehouses")
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:read')")
     public ResponseEntity<Map<String, Object>> getProductStock(
             @PathVariable String productId) {
         ProductStockResponse data = inventoryService.getProductStock(productId);
@@ -114,6 +121,7 @@ public class InventoryController {
 
     @GetMapping("/warehouses/{warehouseId}/stock")
     @Operation(summary = "Get all stock levels in a warehouse (paged)")
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:read')")
     public ResponseEntity<PagedResponse<WarehouseStockItemResponse>> getWarehouseStock(
             @PathVariable String warehouseId,
             @RequestParam(defaultValue = "0") int page,
@@ -137,6 +145,7 @@ public class InventoryController {
 
     @GetMapping("/transactions")
     @Operation(summary = "Get stock movement history with optional filters")
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:read')")
     public ResponseEntity<PagedResponse<TransactionResponse>> getTransactions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -161,6 +170,7 @@ public class InventoryController {
     @PostMapping("/counts")
     @Operation(summary = "Begin a physical inventory count")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:count')")
     public ResponseEntity<Map<String, Object>> beginCount(
             @Valid @RequestBody BeginCountRequest request,
             @AuthenticationPrincipal SecurityUserDetails user) {
@@ -173,6 +183,7 @@ public class InventoryController {
     @PostMapping("/counts/{countId}/items")
     @Operation(summary = "Record a counted item during a physical count")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:count')")
     public ResponseEntity<Map<String, Object>> recordCountItem(
             @PathVariable String countId,
             @Valid @RequestBody RecordCountItemRequest request,
@@ -185,6 +196,7 @@ public class InventoryController {
 
     @PostMapping("/counts/{countId}/complete")
     @Operation(summary = "Complete a physical count, optionally auto-adjusting variances")
+    @PreAuthorize("hasAuthority('PERMISSION_inventory:count')")
     public ResponseEntity<Map<String, Object>> completeCount(
             @PathVariable String countId,
             @RequestBody(required = false) CompleteCountRequest request,
@@ -201,6 +213,7 @@ public class InventoryController {
     @PostMapping("/reservations")
     @Operation(summary = "Reserve stock for a sales order or other purpose")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('PERMISSION_stock:reserve')")
     public ResponseEntity<Map<String, Object>> reserve(
             @Valid @RequestBody ReservationRequest request,
             @AuthenticationPrincipal SecurityUserDetails user) {

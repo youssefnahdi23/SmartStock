@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -217,6 +218,27 @@ public class SupplierController {
             @AuthenticationPrincipal SecurityUserDetails user) {
         DeliveryResponse data = deliveryService.confirmDelivery(supplierId, deliveryId, request, user.getUserId());
         return ResponseEntity.ok(envelope(data));
+    }
+
+    // ─── Products ────────────────────────────────────────────────────────────────
+
+    @GetMapping("/{supplierId}/products")
+    @PreAuthorize("hasAuthority('PERMISSION_supplier:read')")
+    @Operation(summary = "List products associated with a supplier")
+    public ResponseEntity<Map<String, Object>> getSupplierProducts(@PathVariable String supplierId) {
+        List<SupplierProductResponse> data = supplierService.getSupplierProducts(supplierId);
+        return ResponseEntity.ok(Map.of("data", data, "meta", metaMap()));
+    }
+
+    // ─── Orders (stub — delegates to Purchase Order Service) ─────────────────────
+
+    @GetMapping("/{supplierId}/orders")
+    @PreAuthorize("hasAuthority('PERMISSION_supplier:read')")
+    @Operation(summary = "List purchase orders for a supplier (delegates to Purchase Order Service)")
+    public ResponseEntity<Map<String, Object>> getSupplierOrders(@PathVariable String supplierId) {
+        // Purchase orders live in the Purchase Order Service (not yet implemented).
+        // This stub returns an empty list until cross-service delegation is wired up.
+        return ResponseEntity.ok(Map.of("data", List.of(), "meta", metaMap()));
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────────

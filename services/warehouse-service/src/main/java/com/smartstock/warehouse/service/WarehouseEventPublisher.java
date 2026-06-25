@@ -47,7 +47,7 @@ public class WarehouseEventPublisher {
     }
 
     @Async("warehouseEventExecutor")
-    public void publishCapacityAlert(CapacityAlertEvent event) {
+    public void publishCapacityUpdated(WarehouseCapacityUpdatedEvent event) {
         publish(event);
     }
 

@@ -4,10 +4,13 @@ import com.smartstock.supplier.api.dto.request.CreateSupplierRequest;
 import com.smartstock.supplier.api.dto.request.SuspendSupplierRequest;
 import com.smartstock.supplier.api.dto.request.UpdateSupplierRequest;
 import com.smartstock.supplier.api.dto.response.PagedResponse;
+import com.smartstock.supplier.api.dto.response.SupplierProductResponse;
 import com.smartstock.supplier.api.dto.response.SupplierResponse;
 import com.smartstock.supplier.api.dto.response.SupplierSummaryResponse;
 import com.smartstock.supplier.domain.event.*;
 import com.smartstock.supplier.domain.model.Supplier;
+import com.smartstock.supplier.domain.model.SupplierProduct;
+import com.smartstock.supplier.domain.repository.SupplierProductRepository;
 import com.smartstock.supplier.domain.repository.SupplierRepository;
 import com.smartstock.supplier.exception.SupplierCodeExistsException;
 import com.smartstock.supplier.exception.SupplierNotFoundException;
@@ -19,6 +22,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.Pageable;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -28,6 +33,7 @@ import java.util.List;
 public class SupplierService {
 
     private final SupplierRepository supplierRepository;
+    private final SupplierProductRepository supplierProductRepository;
     private final SupplierEventPublisher eventPublisher;
 
     @Transactional
@@ -197,6 +203,34 @@ public class SupplierService {
     public Supplier findById(String supplierId) {
         return supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new SupplierNotFoundException(supplierId));
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('PERMISSION_supplier:read')")
+    public List<SupplierProductResponse> getSupplierProducts(String supplierId) {
+        findById(supplierId);
+        return supplierProductRepository.findBySupplierIdAndIsActiveTrue(supplierId, Pageable.unpaged()).stream()
+                .map(this::toProductResponse)
+                .toList();
+    }
+
+    private SupplierProductResponse toProductResponse(SupplierProduct p) {
+        return SupplierProductResponse.builder()
+                .id(p.getId())
+                .supplierId(p.getSupplierId())
+                .productId(p.getProductId())
+                .supplierProductCode(p.getSupplierProductCode())
+                .unitPrice(p.getUnitPrice())
+                .minimumOrderQuantity(p.getMinimumOrderQuantity())
+                .leadTimeDays(p.getLeadTimeDays())
+                .qualityRating(p.getQualityRating())
+                .isActive(p.getIsActive())
+                .lastOrderedAt(p.getLastOrderedAt())
+                .totalQuantityOrdered(p.getTotalQuantityOrdered())
+                .totalSpent(p.getTotalSpent())
+                .createdAt(p.getCreatedAt())
+                .updatedAt(p.getUpdatedAt())
+                .build();
     }
 
     private String resolveStatus(Supplier s) {

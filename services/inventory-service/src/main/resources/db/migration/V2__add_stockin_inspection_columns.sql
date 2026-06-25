@@ -1,0 +1,3 @@
+ALTER TABLE stock_in
+    ADD COLUMN IF NOT EXISTS inspected_at TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS inspected_by VARCHAR(36);

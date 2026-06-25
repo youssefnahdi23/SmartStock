@@ -5,13 +5,13 @@ import com.smartstock.product.api.dto.response.CategoryResponse;
 import com.smartstock.product.api.dto.response.PagedResponse;
 import com.smartstock.product.domain.model.Category;
 import com.smartstock.product.domain.repository.CategoryRepository;
-import com.smartstock.product.exception.BusinessException;
+import com.smartstock.product.exception.CategoryHierarchyException;
+import com.smartstock.product.exception.CategoryNameExistsException;
 import com.smartstock.product.exception.CategoryNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,8 +25,7 @@ public class CategoryService {
     @Transactional
     public CategoryResponse createCategory(CreateCategoryRequest request, String userId) {
         if (categoryRepository.existsByNameAndActive(request.getName())) {
-            throw new BusinessException("CATEGORY_NAME_EXISTS",
-                    "Category name already exists: " + request.getName(), HttpStatus.BAD_REQUEST);
+            throw new CategoryNameExistsException(request.getName());
         }
 
         Category parent = null;
@@ -36,8 +35,7 @@ public class CategoryService {
                     .orElseThrow(() -> new CategoryNotFoundException(request.getParentCategoryId()));
             level = parent.getCategoryLevel() + 1;
             if (level > 5) {
-                throw new BusinessException("CATEGORY_HIERARCHY_EXCEEDED",
-                        "Category hierarchy is limited to 5 levels", HttpStatus.BAD_REQUEST);
+                throw new CategoryHierarchyException();
             }
         }
 

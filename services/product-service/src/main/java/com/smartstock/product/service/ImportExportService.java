@@ -5,11 +5,10 @@ import com.opencsv.CSVWriter;
 import com.opencsv.exceptions.CsvValidationException;
 import com.smartstock.product.api.dto.request.CreateProductRequest;
 import com.smartstock.product.api.dto.response.ImportResultResponse;
-import com.smartstock.product.domain.model.Product;
-import com.smartstock.product.domain.repository.ProductRepository;
+import com.smartstock.product.api.dto.response.PagedResponse;
+import com.smartstock.product.api.dto.response.ProductResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +32,6 @@ public class ImportExportService {
     };
 
     private final ProductService productService;
-    private final ProductRepository productRepository;
 
     @Transactional
     public ImportResultResponse importCsv(MultipartFile file, String categoryId,
@@ -116,18 +114,16 @@ public class ImportExportService {
 
             writer.writeNext(CSV_HEADER);
 
-            Page<Product> page = productRepository.findAllWithFilters(null, active, categoryId,
-                    Pageable.ofSize(10_000));
-            for (Product p : page.getContent()) {
-                String categoryName = p.getPrimaryCategory() != null
-                        ? p.getPrimaryCategory().getName() : "";
+            PagedResponse<ProductResponse> page = productService.listProducts(
+                    null, active, categoryId, Pageable.ofSize(10_000));
+            for (ProductResponse p : page.getData()) {
                 writer.writeNext(new String[]{
                         p.getId(), p.getName(), p.getSku(),
-                        p.getPrimaryCategory() != null ? p.getPrimaryCategory().getId() : "",
-                        categoryName,
-                        p.getStandardRetailPrice().toPlainString(),
-                        p.getStandardCost().toPlainString(),
-                        p.getUnitOfMeasure(),
+                        p.getCategoryId() != null ? p.getCategoryId() : "",
+                        p.getCategoryName() != null ? p.getCategoryName() : "",
+                        p.getUnitPrice() != null ? p.getUnitPrice().toPlainString() : "0",
+                        p.getUnitCost() != null ? p.getUnitCost().toPlainString() : "0",
+                        p.getUnit(),
                         p.getDescription() != null ? p.getDescription() : "",
                         String.valueOf(p.isActive())
                 });

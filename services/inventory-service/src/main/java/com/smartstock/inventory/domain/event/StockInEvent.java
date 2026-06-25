@@ -15,6 +15,7 @@ public class StockInEvent extends DomainEvent {
     private String transactionId;
     private String productId;
     private String warehouseId;
+    private String zoneId;
     private int quantity;
     private BigDecimal unitCost;
     private BigDecimal totalCost;
@@ -26,13 +27,14 @@ public class StockInEvent extends DomainEvent {
     private String receivedBy;
 
     public StockInEvent(String transactionId, String productId, String warehouseId,
-                        int quantity, BigDecimal unitCost, String referenceType,
+                        String zoneId, int quantity, BigDecimal unitCost, String referenceType,
                         String referenceId, String supplierId,
                         int previousBalance, int newBalance, String receivedBy) {
         super(transactionId, "StockMovement", "inventory-service");
         this.transactionId = transactionId;
         this.productId = productId;
         this.warehouseId = warehouseId;
+        this.zoneId = zoneId;
         this.quantity = quantity;
         this.unitCost = unitCost;
         this.totalCost = unitCost != null ? unitCost.multiply(BigDecimal.valueOf(quantity)) : BigDecimal.ZERO;

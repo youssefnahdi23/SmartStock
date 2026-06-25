@@ -27,7 +27,7 @@ public class ProductEventPublisher {
     }
 
     @Async
-    public void publishProductDeactivated(ProductDeactivatedEvent event) {
+    public void publishProductDeactivated(ProductDeletedEvent event) {
         publish(event.getProductId(), event);
     }
 

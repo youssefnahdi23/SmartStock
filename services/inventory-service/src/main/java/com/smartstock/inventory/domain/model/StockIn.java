@@ -6,6 +6,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "stock_in")
@@ -55,6 +56,12 @@ public class StockIn {
 
     @Column(name = "inspection_notes", columnDefinition = "TEXT")
     private String inspectionNotes;
+
+    @Column(name = "inspected_at")
+    private LocalDateTime inspectedAt;
+
+    @Column(name = "inspected_by")
+    private String inspectedBy;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

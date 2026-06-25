@@ -7,7 +7,7 @@ import com.smartstock.product.api.dto.request.UpdateProductRequest;
 import com.smartstock.product.api.dto.response.*;
 import com.smartstock.product.domain.event.BarcodeGeneratedEvent;
 import com.smartstock.product.domain.event.ProductCreatedEvent;
-import com.smartstock.product.domain.event.ProductDeactivatedEvent;
+import com.smartstock.product.domain.event.ProductDeletedEvent;
 import com.smartstock.product.domain.event.ProductReactivatedEvent;
 import com.smartstock.product.domain.event.ProductUpdatedEvent;
 import com.smartstock.product.domain.model.*;
@@ -98,6 +98,7 @@ public class ProductService {
 
         log.info("Product created: id={}, sku={}", product.getId(), product.getSku());
 
+        // qrCode is not generated at creation time; barcode value is set from the auto-generated EAN13
         ProductCreatedEvent event = new ProductCreatedEvent(
                 product.getId(), product.getSku(), product.getName(),
                 product.getDescription(),
@@ -106,6 +107,7 @@ public class ProductService {
                 product.getStandardRetailPrice(), product.getStandardCost(),
                 product.getUnitOfMeasure(), product.getWeight(),
                 barcode.getBarcodeValue(), userId);
+        event.setQrCode(null); // QR code is generated on demand via generateQrCode()
         eventPublisher.publishProductCreated(event);
 
         return toResponse(product);
@@ -210,7 +212,7 @@ public class ProductService {
         product = productRepository.save(product);
 
         eventPublisher.publishProductDeactivated(
-                new ProductDeactivatedEvent(product.getId(), product.getSku(),
+                new ProductDeletedEvent(product.getId(), product.getSku(),
                         product.getName(), "Deactivated by user", userId));
 
         log.info("Product deactivated: id={}, sku={}", product.getId(), product.getSku());

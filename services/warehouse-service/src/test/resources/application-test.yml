@@ -1,0 +1,21 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+
+  flyway:
+    baseline-on-migrate: true
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+app:
+  jwt:
+    secret: SmartStockTestSecretKeyForHS512JWTTokenSigningMustBe64BytesMinimumForSecurity2026
+
+logging:
+  level:
+    root: WARN
+    com.smartstock.warehouse: INFO
+    org.flywaydb: INFO

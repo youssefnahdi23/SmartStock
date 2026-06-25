@@ -13,11 +13,11 @@
 
     <artifactId>smartstock-supplier-service</artifactId>
     <packaging>jar</packaging>
-    <name>SmartStock $Service</name>
+    <name>SmartStock Supplier Service</name>
     <description>supplier-service</description>
 
     <properties>
-        <start-class>com.smartstock.supplierservice.supplierserviceApplication</start-class>
+        <start-class>com.smartstock.supplier.SupplierServiceApplication</start-class>
     </properties>
 
     <dependencies>
@@ -121,6 +121,12 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
 

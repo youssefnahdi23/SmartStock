@@ -26,7 +26,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    
+
+    - name: Validate Flyway migration versions
+      run: bash scripts/check-flyway-versions.sh
+
     - name: Set up Java
       uses: actions/setup-java@v4
       with:

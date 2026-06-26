@@ -1,4 +1,4 @@
-package com.smartstock.customerService.unit;
+package com.smartstock.customerservice.unit;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

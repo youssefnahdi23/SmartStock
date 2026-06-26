@@ -1,4 +1,4 @@
-package com.smartstock.customerService.infrastructure.config;
+package com.smartstock.customerservice.infrastructure.config;
 
 import org.springframework.context.annotation.Configuration;
 

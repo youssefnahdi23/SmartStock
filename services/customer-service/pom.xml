@@ -13,11 +13,11 @@
 
     <artifactId>smartstock-customer-service</artifactId>
     <packaging>jar</packaging>
-    <name>SmartStock $Service</name>
+    <name>SmartStock Customer Service</name>
     <description>customer-service</description>
 
     <properties>
-        <start-class>com.smartstock.customerservice.customerserviceApplication</start-class>
+        <start-class>com.smartstock.customer.CustomerServiceApplication</start-class>
     </properties>
 
     <dependencies>
@@ -76,22 +76,6 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
-        <!-- JWT -->
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-
         <!-- MapStruct -->
         <dependency>
             <groupId>org.mapstruct</groupId>
@@ -121,6 +105,12 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
 

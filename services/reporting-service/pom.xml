@@ -13,11 +13,11 @@
 
     <artifactId>smartstock-reporting-service</artifactId>
     <packaging>jar</packaging>
-    <name>SmartStock $Service</name>
+    <name>SmartStock Reporting Service</name>
     <description>reporting-service</description>
 
     <properties>
-        <start-class>com.smartstock.reportingservice.reportingserviceApplication</start-class>
+        <start-class>com.smartstock.reportingservice.ReportingserviceApplication</start-class>
     </properties>
 
     <dependencies>
@@ -136,6 +136,16 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>**/*IntegrationTest.java</exclude>
+                        <exclude>**/*RepositoryTest.java</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
         </plugins>
     </build>

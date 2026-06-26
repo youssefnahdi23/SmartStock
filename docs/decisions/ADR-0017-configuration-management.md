@@ -65,15 +65,15 @@ logging:
 ❌ WRONG: application.yml contains password
 spring:
   datasource:
-    password: "super-secret-123"
+    password: "<DB_PASSWORD>"
 ```
 
 **Option 1: Environment Variables (Simple)**
 ```bash
 # .env file (local development only, NEVER in Git)
-DATABASE_PASSWORD=local-dev-password
-REDIS_PASSWORD=local-dev-password
-JWT_SIGNING_KEY=dev-key-only-for-testing
+DATABASE_PASSWORD=<DB_PASSWORD>
+REDIS_PASSWORD=<REDIS_PASSWORD>
+JWT_SIGNING_KEY=<JWT_SECRET>
 
 # Load in Docker Compose
 services:
@@ -86,8 +86,8 @@ services:
 ```bash
 # Create secret
 kubectl create secret generic db-credentials \
-  --from-literal=password=prod-password \
-  --from-literal=username=prod-user
+  --from-literal=password=<DB_PASSWORD> \
+  --from-literal=username=<DB_USERNAME>
 
 # Reference in deployment
 env:

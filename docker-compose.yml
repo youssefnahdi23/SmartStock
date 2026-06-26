@@ -109,6 +109,102 @@ services:
       service: postgres
       database: warehouse
 
+  # PostgreSQL - Supplier Service
+  postgres-supplier:
+    image: postgres:16-alpine
+    container_name: smartstock-postgres-supplier
+    environment:
+      POSTGRES_DB: smartstock_supplier
+      POSTGRES_USER: ${DB_USER:-smartstock}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-supplier-data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartstock} -d smartstock_supplier"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartstock-network
+    labels:
+      service: postgres
+      database: supplier
+
+  # PostgreSQL - Customer Service
+  postgres-customer:
+    image: postgres:16-alpine
+    container_name: smartstock-postgres-customer
+    environment:
+      POSTGRES_DB: smartstock_customer
+      POSTGRES_USER: ${DB_USER:-smartstock}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-customer-data:/var/lib/postgresql/data
+    ports:
+      - "5437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartstock} -d smartstock_customer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartstock-network
+    labels:
+      service: postgres
+      database: customer
+
+  # PostgreSQL - Purchase Order Service
+  postgres-purchase-order:
+    image: postgres:16-alpine
+    container_name: smartstock-postgres-purchase-order
+    environment:
+      POSTGRES_DB: smartstock_purchase_order
+      POSTGRES_USER: ${DB_USER:-smartstock}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-purchase-order-data:/var/lib/postgresql/data
+    ports:
+      - "5438:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartstock} -d smartstock_purchase_order"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartstock-network
+    labels:
+      service: postgres
+      database: purchase-order
+
+  # PostgreSQL - Sales Order Service
+  postgres-sales-order:
+    image: postgres:16-alpine
+    container_name: smartstock-postgres-sales-order
+    environment:
+      POSTGRES_DB: smartstock_sales_order
+      POSTGRES_USER: ${DB_USER:-smartstock}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-sales-order-data:/var/lib/postgresql/data
+    ports:
+      - "5439:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartstock} -d smartstock_sales_order"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartstock-network
+    labels:
+      service: postgres
+      database: sales-order
+
   # ═════════════════════════════════════════════════════════════════════════════
   # CACHING & SESSION STORE
   # ═════════════════════════════════════════════════════════════════════════════
@@ -427,7 +523,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-smartstock123}
-      JWT_SECRET: ${JWT_SECRET:-SmartStockIdentityServiceSecretKeyForHS512JWTTokenSigningMustBe64BytesMinimumForSecurity2026}
+      JWT_SECRET: ${JWT_SECRET:-<JWT_SECRET>}
       IDENTITY_SERVICE_URL: http://identity-service:8001
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       RATE_LIMIT_REPLENISH: ${RATE_LIMIT_REPLENISH:-100}
@@ -459,6 +555,14 @@ volumes:
   postgres-inventory-data:
     driver: local
   postgres-warehouse-data:
+    driver: local
+  postgres-supplier-data:
+    driver: local
+  postgres-customer-data:
+    driver: local
+  postgres-purchase-order-data:
+    driver: local
+  postgres-sales-order-data:
     driver: local
 
   # Caching

@@ -114,7 +114,7 @@ springdoc:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:SmartStockIdentityServiceSecretKeyForHS512JWTTokenSigningMustBe64BytesMinimumForSecurity2026}
+    secret: ${JWT_SECRET:<JWT_SECRET>}
     issuer: smartstock-auth
     audience: smartstock-api
 

@@ -14,7 +14,7 @@ spring:
           fetch_size: 50
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5434}/smartstock_warehouse
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:smartstock_warehouse}
     username: ${DB_USER:smartstock}
     password: ${DB_PASSWORD:smartstock}
     driver-class-name: org.postgresql.Driver
@@ -74,7 +74,7 @@ springdoc:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:SmartStockDefaultSecretKeyForDevelopmentOnlyNotForProduction2026}
+    secret: ${JWT_SECRET:<JWT_SECRET>}
 
 logging:
   level:

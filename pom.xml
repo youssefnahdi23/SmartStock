@@ -15,7 +15,12 @@
 
     <modules>
         <module>services</module>
-        <module>desktop-client</module>
+        <!--
+          desktop-client (JavaFX, ADR-0007) is planned but not yet present in the
+          repository. Re-enable this module once the desktop-client/ directory and its
+          POM exist; referencing a non-existent module breaks the reactor build.
+        -->
+        <!-- <module>desktop-client</module> -->
     </modules>
 
     <scm>

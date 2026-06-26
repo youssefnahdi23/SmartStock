@@ -115,7 +115,7 @@ springdoc:
 app:
   jwt:
     # HS512 secret - min 512 bits. Override via JWT_SECRET env var in production.
-    secret: ${JWT_SECRET:SmartStockIdentityServiceSecretKeyForHS512JWTTokenSigningMustBe64BytesMinimumForSecurity2026}
+    secret: ${JWT_SECRET:<JWT_SECRET>}
     # Access token TTL: 1 hour (3600000ms) per ADR-0005
     access-token-expiration-ms: ${JWT_ACCESS_TTL:3600000}
     # Refresh token TTL: 30 days (2592000000ms) per API spec

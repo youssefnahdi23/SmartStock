@@ -1,4 +1,4 @@
-package com.smartstock.orderService.presentation.controller;
+package com.smartstock.orderservice.presentation.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

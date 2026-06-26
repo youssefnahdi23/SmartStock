@@ -1,4 +1,4 @@
-package com.smartstock.analyticsService.infrastructure.config;
+package com.smartstock.analyticsservice.infrastructure.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

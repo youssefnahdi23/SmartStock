@@ -1,4 +1,4 @@
-package com.smartstock.dataExportService.presentation.controller;
+package com.smartstock.dataexportservice.presentation.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

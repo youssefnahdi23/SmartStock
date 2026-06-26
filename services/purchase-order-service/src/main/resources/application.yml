@@ -3,9 +3,9 @@ spring:
     name: purchase-order-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/purchase_db
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:smartstock_purchase_order}
+    username: ${DB_USER:smartstock}
+    password: ${DB_PASSWORD:smartstock}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -29,7 +29,7 @@ spring:
     validate-on-migrate: true
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -70,7 +70,7 @@ springdoc:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:default-dev-secret-that-is-long-enough-for-hs512-algorithm-minimum-512-bits}
+    secret: ${JWT_SECRET:<JWT_SECRET>}
     expiration-ms: 86400000
 
 logging:

@@ -1,4 +1,4 @@
-package com.smartstock.dataExportService;
+package com.smartstock.dataexportservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

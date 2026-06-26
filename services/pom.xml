@@ -28,6 +28,7 @@
         <module>customer-service</module>
         <module>audit-service</module>
         <module>order-service</module>
+        <module>purchase-order-service</module>
         <module>notification-service</module>
         <module>reporting-service</module>
         <module>data-export-service</module>

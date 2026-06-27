@@ -5,8 +5,8 @@ Living log of the stabilization effort. Plan: [stabilization-plan.md](stabilizat
 | Milestone | Debt | Status | Commit |
 |-----------|------|--------|--------|
 | M1 | C-1 | ✅ Done | 84fcba9 |
-| M2 | C-5, M-5 | ✅ Done | _pending_ |
-| M3 | C-4 | ⏳ Not started | — |
+| M2 | C-5, M-5 | ✅ Done | 6e95aea |
+| M3 | C-4 | ✅ Done | _pending_ |
 | M4 | C-2 | ⏳ Not started | — |
 | M5 | C-3 | ⏳ Not started | — |
 | M6 | H-3 | ⏳ Not started | — |
@@ -85,3 +85,42 @@ connection failure on boot.
 host — commands are in runtime-verification.md. Everything that can be validated without a
 daemon (compose parse, service graph, env resolution, script syntax) passes. Live runtime
 proof is folded into M9's Docker-enabled CI job.
+
+---
+
+## M3 — C-4: Event topic/event-name contract ✅
+
+**Problem:** The only consumer, `OrderEventListener` (customer-service), subscribed to topic
+`events.order` for an `ORDER_COMPLETED` event type that **no producer emits**.
+Sales-order-service publishes `DeliveryCompletedEvent` (and 6 siblings) to
+`sales-order.events`. The advertised customer-statistics flow therefore never ran.
+
+**Fix:**
+- Added [Topics.java](../../services/common/src/main/java/com/smartstock/common/event/Topics.java)
+  in `common` — one canonical constant per producing context, the single source of truth.
+- Repointed the sales-order producer constant
+  (`KafkaConfig.SALES_ORDER_EVENTS_TOPIC = Topics.SALES_ORDER_EVENTS`) and the customer
+  listener (`@KafkaListener(topics = "#{T(...Topics).SALES_ORDER_EVENTS}")`) at the same
+  constant, so producer and consumer cannot drift.
+- Rewrote `OrderEventListener` to record customer spend on **`DeliveryCompletedEvent`** —
+  the order's terminal state — rather than a non-existent type. Recording on completion (not
+  creation) avoids double-counting a cancelled order.
+- Made the event self-sufficient: added `totalAmount` to `DeliveryCompletedEvent`
+  (additive, backward-compatible), populated from `SalesOrder.getTotalAmount()` at publish
+  time, so the consumer needs no callback into sales-order-service.
+- Made deserialization deterministic: producers send `add.type.headers=false`, so the
+  customer consumer pins `spring.json.value.default.type` to a tolerant top-level
+  `SalesOrderEventPayload` (ignores unknown fields → one default type serves every event on
+  the topic).
+- Tests: `OrderEventListenerTest` (records once on completion; ignores other types; ignores
+  incomplete payloads; no-op on unknown customer; **contract** assertion the listener binds
+  the canonical topic) + `KafkaTopicContractTest` (producer side).
+
+**Verification (run 2026-06-27):**
+- `mvn -pl common,sales-order-service,customer-service -am test` → **BUILD SUCCESS**;
+  customer 17 tests, sales-order 17 tests, 0 failures.
+- Literal `events.order` / type `ORDER_COMPLETED` no longer referenced in code.
+
+**Notes:** redelivery safety (idempotency) + DLQ come in **M6**; this milestone makes the
+flow *correct and live*. Rolling `Topics` constants into the remaining services'
+`KafkaConfig` is folded into the messaging starter in **M7**.

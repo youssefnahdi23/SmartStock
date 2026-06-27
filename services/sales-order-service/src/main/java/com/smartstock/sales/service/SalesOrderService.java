@@ -299,7 +299,8 @@ public class SalesOrderService {
 
         eventPublisher.publishDeliveryCompleted(new DeliveryCompletedEvent(
                 so.getId(), so.getSoNumber(), so.getCustomerId(),
-                shipmentId, req.getDeliveryDate(), req.getSignedBy(), deliveredAt));
+                shipmentId, req.getDeliveryDate(), req.getSignedBy(), deliveredAt,
+                so.getTotalAmount()));
 
         return toShipmentResponse(shipment, soId);
     }

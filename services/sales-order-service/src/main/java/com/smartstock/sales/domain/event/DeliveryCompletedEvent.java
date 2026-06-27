@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 
@@ -21,10 +22,14 @@ public class DeliveryCompletedEvent extends DomainEvent {
     private LocalDate deliveryDate;
     private String signedBy;
     private Instant deliveredAt;
+    // Order value carried on the completion event so downstream consumers (e.g. customer
+    // purchase statistics) need not call back into sales-order-service. Additive and
+    // backward-compatible (debt C-4).
+    private BigDecimal totalAmount;
 
     public DeliveryCompletedEvent(String soId, String soNumber, String customerId,
                                    String shipmentId, LocalDate deliveryDate,
-                                   String signedBy, Instant deliveredAt) {
+                                   String signedBy, Instant deliveredAt, BigDecimal totalAmount) {
         super(soId, "SalesOrder", "sales-order-service");
         this.soNumber = soNumber;
         this.customerId = customerId;
@@ -32,5 +37,6 @@ public class DeliveryCompletedEvent extends DomainEvent {
         this.deliveryDate = deliveryDate;
         this.signedBy = signedBy;
         this.deliveredAt = deliveredAt;
+        this.totalAmount = totalAmount;
     }
 }

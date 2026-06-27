@@ -1,45 +1,54 @@
 package com.smartstock.customer.service;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.smartstock.customer.domain.repository.CustomerRepository;
+import com.smartstock.customer.event.SalesOrderEventPayload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-
 /**
- * Consumes order events from events.order to keep customer purchase statistics
- * (totalOrders, totalSpent, averageOrderValue) current.
- * Wired to Sales Order Service events — activated when that service is live (M3).
+ * Keeps customer purchase statistics (totalOrders, totalSpent, averageOrderValue) current
+ * by consuming sales-order completion events.
+ *
+ * <p>Wiring corrected per debt C-4: the previous listener subscribed to {@code events.order}
+ * for an {@code ORDER_COMPLETED} type that <em>no producer emits</em>, so the flow never
+ * ran. It now subscribes to the canonical {@link com.smartstock.common.event.Topics#SALES_ORDER_EVENTS}
+ * stream and records spend on {@code DeliveryCompletedEvent} — the order's terminal state —
+ * which avoids the double-count hazard of recording on creation (a cancelled order never
+ * delivers). The order value rides on the event itself ({@code totalAmount}).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderEventListener {
 
+    /** Terminal sales-order event on which an order counts toward customer spend. */
+    static final String ORDER_COMPLETED_EVENT = "DeliveryCompletedEvent";
+
     private final CustomerRepository customerRepository;
 
-    @KafkaListener(topics = "events.order", groupId = "${spring.kafka.consumer.group-id}",
-                   containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(
+            topics = "#{T(com.smartstock.common.event.Topics).SALES_ORDER_EVENTS}",
+            groupId = "${spring.kafka.consumer.group-id}",
+            containerFactory = "kafkaListenerContainerFactory")
     @Transactional
-    public void onOrderEvent(OrderCompletedPayload payload) {
-        if (!"ORDER_COMPLETED".equals(payload.eventType())) {
+    public void onSalesOrderEvent(SalesOrderEventPayload payload) {
+        if (payload == null || !ORDER_COMPLETED_EVENT.equals(payload.eventType())) {
             return;
         }
         if (payload.customerId() == null || payload.totalAmount() == null) {
-            log.warn("Ignoring ORDER_COMPLETED with missing customerId or totalAmount");
+            log.warn("Ignoring {} with missing customerId or totalAmount (eventId={})",
+                    ORDER_COMPLETED_EVENT, payload.eventId());
             return;
         }
         customerRepository.findById(payload.customerId()).ifPresentOrElse(customer -> {
             customer.recordOrder(payload.totalAmount());
             customerRepository.save(customer);
-            log.debug("Recorded order for customer {}: amount={}", payload.customerId(), payload.totalAmount());
-        }, () -> log.warn("ORDER_COMPLETED received for unknown customerId={}", payload.customerId()));
+            log.debug("Recorded completed order for customer {}: amount={}",
+                    payload.customerId(), payload.totalAmount());
+        }, () -> log.warn("{} received for unknown customerId={}",
+                ORDER_COMPLETED_EVENT, payload.customerId()));
     }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record OrderCompletedPayload(String eventType, String customerId, BigDecimal totalAmount) {}
 }

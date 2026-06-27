@@ -41,6 +41,11 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
+        # Producers send sales-order events with no type headers (add.type.headers=false),
+        # so pin the target type explicitly. The tolerant payload ignores unknown fields,
+        # so a single default type works for every event multiplexed on the topic (C-4).
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.smartstock.customer.event.SalesOrderEventPayload
 
 server:
   port: ${SERVER_PORT:8006}

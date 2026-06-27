@@ -32,9 +32,8 @@ spring:
       group-id: analytics-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
+      # Capture sink stores the raw JSON envelope verbatim, so deserialize values as String.
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
   flyway:
     enabled: true
@@ -68,6 +67,12 @@ management:
       enabled: true
     readinessstate:
       enabled: true
+
+# Consumer hardening (debt H-3) for the durable event-capture sink (debt H-4): error handler
+# with DLQ + the idempotency ledger.
+smartstock:
+  consumer:
+    enabled: true
 
 logging:
   level:

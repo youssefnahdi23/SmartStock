@@ -10,8 +10,8 @@ Living log of the stabilization effort. Plan: [stabilization-plan.md](stabilizat
 | M4 | C-2 | ✅ Done | f942fbd |
 | M5 | C-3 | ✅ Done | aa90953 |
 | M6 | H-3 | ✅ Done | 9852c4f |
-| M9 | H-7 | ✅ Done | _pending_ |
-| M8 | H-4 | ⏳ Not started | — |
+| M9 | H-7 | ✅ Done | f2fbba9 |
+| M8 | H-4 | ✅ Done | _pending_ |
 | M7 | H-1 | ⏳ In progress | — |
 
 > Execution note: M9 (H-7) was brought forward ahead of M7/M8 — it is an explicit final
@@ -279,3 +279,37 @@ non-existent root JaCoCo report (L-3).
 daemon is unavailable, K-5). The 4 legacy per-service surefire `integration-test` profiles are
 superseded by the parent failsafe profile and are functionally harmless (base surefire still
 excludes IT, so no double execution); they can be removed in a later cleanup.
+
+---
+
+## M8 — H-4: Durable analytics event-capture sink ✅
+
+**Problem:** `analytics-service`/`data-export-service` were health-only skeletons; **no service
+persisted the event stream** anywhere. Combined with the (now-fixed) lossy/unconsumed events,
+there was no durable historical record to ever train models on — and lost history is
+unrecoverable, so capture must start *now*, before any analytics logic.
+
+**Fix (analytics-service):**
+- `captured_events` + `processed_events` Flyway migration (`V2`).
+- `EventCaptureSink` — a `@KafkaListener` subscribing to **all 8 domain topics** (via the
+  `Topics` registry) that persists the **raw JSON envelope verbatim** (consumer value
+  deserializer switched to `StringDeserializer`), parsing `eventId`/`eventType` best-effort for
+  indexing. Never drops an event on a parse error. Idempotent via the shared H-3 ledger and
+  hardened by the shared error-handler/DLT (`smartstock.consumer.enabled=true`).
+- `EventCaptureRepository` (JDBC, no managed entity → `ddl-auto: validate` safe).
+- Added the missing `testcontainers:junit-jupiter` test dep; added a Testcontainers
+  `AbstractIntegrationTest` base (real Postgres, Kafka listener stopped) and aligned the
+  pre-existing skeleton integration test to it so the context boots end to end.
+
+**Verification (run 2026-06-27):**
+- `mvn -pl common,analytics-service -am test` → **BUILD SUCCESS**; analytics unit test green;
+  integration tests compile.
+- New `EventCaptureSinkIntegrationTest` (Testcontainers): asserts an emitted envelope lands in
+  `captured_events` with parsed id/type and verbatim payload, and that a redelivery is captured
+  once — runs under M9's Docker CI.
+- `check-flyway-versions.sh` → OK.
+
+**Notes:** this is a deliberately minimal "capture everything" sink (no analytics logic), per the
+register's guidance to accrue history immediately. It depends on M4 (reliable emission) + M6
+(idempotency) + M3 (topic registry), all in place. `data-export-service` can adopt the same sink
+pattern later.

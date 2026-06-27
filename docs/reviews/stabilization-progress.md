@@ -7,8 +7,8 @@ Living log of the stabilization effort. Plan: [stabilization-plan.md](stabilizat
 | M1 | C-1 | ✅ Done | 84fcba9 |
 | M2 | C-5, M-5 | ✅ Done | 6e95aea |
 | M3 | C-4 | ✅ Done | c73fb23 |
-| M4 | C-2 | ✅ Done | _pending_ |
-| M5 | C-3 | ⏳ Not started | — |
+| M4 | C-2 | ✅ Done | f942fbd |
+| M5 | C-3 | ✅ Done | _pending_ |
 | M6 | H-3 | ⏳ Not started | — |
 | M7 | H-1 | ⏳ Not started | — |
 | M8 | H-4 | ⏳ Not started | — |
@@ -171,3 +171,35 @@ would have thrown and been silently swallowed.)
 requirement, which is the next-priority milestone. Live broker round-trip is covered by the
 Testcontainers integration suite in **M9**. Per-service `AsyncConfig` executor beans are now
 unused but left in place (harmless) — removal is deferred to the M7 shared-starter cleanup.
+
+---
+
+## M5 — C-3: Optimistic locking on mutable inventory aggregates ✅
+
+**Problem:** No `@Version` / `@Lock` anywhere. `InventoryLevel`, `StockOut`, `InventoryHold`
+were read-modify-write under concurrency with no guard, so two concurrent stock-outs /
+reservations could lost-update each other — driving stock negative / overselling, the single
+most damaging bug class for an inventory platform, invisible at low load.
+
+**Fix:**
+- Added a JPA `@Version` column to `InventoryLevel`, `StockOut`, `InventoryHold`, with Flyway
+  migration `V5__add_optimistic_lock_version.sql` (`version BIGINT NOT NULL DEFAULT 0`,
+  backfilling existing rows). A stale writer now fails with `OptimisticLockException` instead
+  of clobbering a concurrent update.
+- Added `ConcurrencyRetry` and wrapped the two contention paths named in the register —
+  `InventoryService.dispatchStock` (decrement) and `ReservationService.reserve` — so a losing
+  writer **re-reads fresh stock and retries** (succeeding if stock remains, or being correctly
+  rejected), instead of failing the user request. Each retry runs a fresh transaction via the
+  bean's `ObjectProvider` self-proxy (the public method is non-transactional; the renamed
+  `*Transactional` method carries `@Transactional`). The other `InventoryLevel` writers
+  (receive/adjust/transfer) remain lost-update-safe via `@Version` (a conflict surfaces as an
+  error) — retry can be extended to them later; no path is left unprotected.
+
+**Verification (run 2026-06-27):**
+- `mvn -pl common,inventory-service -am test` → **BUILD SUCCESS**; 21 inventory unit tests
+  incl. new `ConcurrencyRetryTest` (3); existing service tests updated to exercise the
+  retry/self-proxy wrapper (real `@Spy ConcurrencyRetry` + mocked self-provider) and pass.
+- New `InventoryConcurrencyIntegrationTest` (Testcontainers): 20 parallel dispatches of 10
+  against 100 stock — asserts `on_hand == 100 - 10*successes` and never negative. Compiles;
+  runs under the `integration-test` profile / M9 Docker CI (excluded from default `mvn test`).
+- `check-flyway-versions.sh` → OK.

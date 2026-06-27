@@ -15,6 +15,7 @@ import com.smartstock.inventory.exception.InsufficientStockException;
 import com.smartstock.inventory.exception.InventoryLevelNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,6 +36,10 @@ public class InventoryService {
     private final StockInRepository stockInRepository;
     private final StockOutRepository stockOutRepository;
     private final InventoryEventPublisher eventPublisher;
+    private final ConcurrencyRetry concurrencyRetry;
+    // Self-proxy so the retried transactional method runs through the proxy (a fresh tx per
+    // attempt). ObjectProvider is lazy, avoiding a self-referential constructor cycle.
+    private final ObjectProvider<InventoryService> self;
 
     @Transactional
     @PreAuthorize("hasAuthority('PERMISSION_inventory:write') and hasAuthority('PERMISSION_stock:in')")
@@ -87,9 +92,15 @@ public class InventoryService {
         return toTransactionResponse(movement, "STOCK_IN", req.getSupplierId(), null);
     }
 
-    @Transactional
     @PreAuthorize("hasAuthority('PERMISSION_inventory:write') and hasAuthority('PERMISSION_stock:out')")
     public StockTransactionResponse dispatchStock(StockOutRequest req, String actorId) {
+        // Retry the decrement on optimistic-lock conflict so two concurrent dispatches cannot
+        // oversell: the loser re-reads fresh stock and either succeeds or is correctly rejected.
+        return concurrencyRetry.execute(() -> self.getObject().dispatchStockTransactional(req, actorId));
+    }
+
+    @Transactional
+    public StockTransactionResponse dispatchStockTransactional(StockOutRequest req, String actorId) {
         InventoryLevel level = inventoryLevelRepository
                 .findByProductIdAndWarehouseId(req.getProductId(), req.getWarehouseId())
                 .orElseThrow(() -> new InventoryLevelNotFoundException(req.getProductId(), req.getWarehouseId()));

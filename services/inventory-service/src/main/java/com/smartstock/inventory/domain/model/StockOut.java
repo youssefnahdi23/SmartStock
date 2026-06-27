@@ -21,6 +21,11 @@ public class StockOut {
     @Column(length = 36)
     private String id;
 
+    // Optimistic lock (debt C-3) on this mutable dispatch aggregate.
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "stock_movement_id", nullable = false, length = 36)
     private String stockMovementId;
 

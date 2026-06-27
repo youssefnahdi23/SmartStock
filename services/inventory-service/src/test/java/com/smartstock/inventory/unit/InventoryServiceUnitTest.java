@@ -10,6 +10,7 @@ import com.smartstock.inventory.domain.model.StockOut;
 import com.smartstock.inventory.domain.repository.*;
 import com.smartstock.inventory.exception.InsufficientStockException;
 import com.smartstock.inventory.exception.InventoryLevelNotFoundException;
+import com.smartstock.inventory.service.ConcurrencyRetry;
 import com.smartstock.inventory.service.InventoryEventPublisher;
 import com.smartstock.inventory.service.InventoryService;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +18,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -35,6 +38,10 @@ class InventoryServiceUnitTest {
     @Mock StockInRepository stockInRepository;
     @Mock StockOutRepository stockOutRepository;
     @Mock InventoryEventPublisher eventPublisher;
+    // Real retry (runs the action once when no conflict) + a self-provider returning the
+    // service under test, so the public method's retry/self-proxy wrapper is exercised.
+    @Spy ConcurrencyRetry concurrencyRetry = new ConcurrencyRetry();
+    @Mock ObjectProvider<InventoryService> self;
 
     @InjectMocks InventoryService inventoryService;
 
@@ -42,6 +49,7 @@ class InventoryServiceUnitTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(self.getObject()).thenReturn(inventoryService);
         savedMovement = StockMovement.builder()
                 .id("mov-001")
                 .movementType("STOCK_IN")

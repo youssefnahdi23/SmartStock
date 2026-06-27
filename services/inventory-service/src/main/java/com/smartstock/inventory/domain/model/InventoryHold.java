@@ -21,6 +21,11 @@ public class InventoryHold {
     @Column(length = 36)
     private String id;
 
+    // Optimistic lock (debt C-3) on this mutable reservation aggregate.
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "product_id", nullable = false, length = 36)
     private String productId;
 

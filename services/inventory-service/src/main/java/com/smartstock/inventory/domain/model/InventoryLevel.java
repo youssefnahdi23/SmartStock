@@ -24,6 +24,13 @@ public class InventoryLevel {
     @Column(length = 36)
     private String id;
 
+    // Optimistic lock (debt C-3): concurrent read-modify-write on the same stock row would
+    // otherwise lost-update and oversell. Hibernate checks+bumps this on every update; a stale
+    // writer fails with OptimisticLockException and is retried by the service layer.
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "product_id", nullable = false, length = 36)
     private String productId;
 

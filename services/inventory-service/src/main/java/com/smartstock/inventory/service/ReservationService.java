@@ -11,6 +11,7 @@ import com.smartstock.inventory.exception.InsufficientStockException;
 import com.smartstock.inventory.exception.InventoryLevelNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,10 +27,17 @@ public class ReservationService {
     private final InventoryLevelRepository inventoryLevelRepository;
     private final InventoryHoldRepository inventoryHoldRepository;
     private final InventoryEventPublisher eventPublisher;
+    private final ConcurrencyRetry concurrencyRetry;
+    private final ObjectProvider<ReservationService> self;
 
-    @Transactional
     @PreAuthorize("hasAuthority('PERMISSION_stock:reserve')")
     public ReservationResponse reserve(ReservationRequest req, String actorId) {
+        // Retry on optimistic-lock conflict so concurrent reservations cannot over-reserve.
+        return concurrencyRetry.execute(() -> self.getObject().reserveTransactional(req, actorId));
+    }
+
+    @Transactional
+    public ReservationResponse reserveTransactional(ReservationRequest req, String actorId) {
         InventoryLevel level = inventoryLevelRepository
                 .findByProductIdAndWarehouseId(req.getProductId(), req.getWarehouseId())
                 .orElseThrow(() -> new InventoryLevelNotFoundException(req.getProductId(), req.getWarehouseId()));

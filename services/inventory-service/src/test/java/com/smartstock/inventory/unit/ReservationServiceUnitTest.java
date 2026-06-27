@@ -8,6 +8,7 @@ import com.smartstock.inventory.domain.repository.InventoryHoldRepository;
 import com.smartstock.inventory.domain.repository.InventoryLevelRepository;
 import com.smartstock.inventory.exception.InsufficientStockException;
 import com.smartstock.inventory.exception.InventoryLevelNotFoundException;
+import com.smartstock.inventory.service.ConcurrencyRetry;
 import com.smartstock.inventory.service.InventoryEventPublisher;
 import com.smartstock.inventory.service.ReservationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +16,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -31,6 +34,8 @@ class ReservationServiceUnitTest {
     @Mock InventoryLevelRepository inventoryLevelRepository;
     @Mock InventoryHoldRepository inventoryHoldRepository;
     @Mock InventoryEventPublisher eventPublisher;
+    @Spy ConcurrencyRetry concurrencyRetry = new ConcurrencyRetry();
+    @Mock ObjectProvider<ReservationService> self;
 
     @InjectMocks ReservationService reservationService;
 
@@ -38,6 +43,7 @@ class ReservationServiceUnitTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(self.getObject()).thenReturn(reservationService);
         level = InventoryLevel.builder()
                 .id("lvl-001")
                 .productId("prod-001")

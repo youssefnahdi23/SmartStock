@@ -9,10 +9,17 @@ Living log of the stabilization effort. Plan: [stabilization-plan.md](stabilizat
 | M3 | C-4 | ✅ Done | c73fb23 |
 | M4 | C-2 | ✅ Done | f942fbd |
 | M5 | C-3 | ✅ Done | aa90953 |
-| M6 | H-3 | ✅ Done | _pending_ |
-| M7 | H-1 | ⏳ Not started | — |
+| M6 | H-3 | ✅ Done | 9852c4f |
+| M9 | H-7 | ✅ Done | _pending_ |
 | M8 | H-4 | ⏳ Not started | — |
-| M9 | H-7 | ⏳ Not started | — |
+| M7 | H-1 | ⏳ In progress | — |
+
+> Execution note: M9 (H-7) was brought forward ahead of M7/M8 — it is an explicit final
+> acceptance criterion ("integration tests run in CI"), low-risk, and it validates every prior
+> milestone. M7 (H-1) is maintainability-only (not an acceptance criterion) and, per the line-count
+> audit, the duplicated security code has **genuinely diverged** (JwtService 3→110 lines: a stub, a
+> token *issuer*, and several *validators*), making a blanket extraction the highest-risk change —
+> so it is sequenced last and scoped conservatively.
 
 ---
 
@@ -238,3 +245,37 @@ the partition forever.
 **Notes:** the DLT round-trip and live redelivery are exercised by the Testcontainers
 integration suite (M9). The M8 analytics capture sink reuses this same idempotency + error
 handling.
+
+---
+
+## M9 — H-7: Integration tests in CI ✅
+
+**Problem:** `*IntegrationTest`/`*RepositoryTest` were excluded from `mvn test`, and only 4 of
+15 services even had a profile to run them — 24 integration test files that **never ran in any
+pipeline**. This is precisely why C-1…C-4 went undetected. Codecov also pointed at a
+non-existent root JaCoCo report (L-3).
+
+**Fix:**
+- Added a uniform `integration-test` profile to the **parent** pom using `maven-failsafe-plugin`
+  (verify phase). Failsafe is independent of each service's surefire excludes — no
+  include/exclude precedence ambiguity, no double-run with the unit suite — and the profile is
+  inherited by all 15 modules. `mvn verify -Pintegration-test` runs the whole Testcontainers
+  suite.
+- Reworked [build-test.yml](../../.github/workflows/build-test.yml): the `build` job now also
+  runs the **Flyway version guard** (M1) and **`docker compose config`** validation (M2); a new
+  **`integration-test` job** runs `mvn -Pintegration-test verify` on a Docker-enabled runner
+  (Testcontainers) — the check that would have caught the Critical items. Bumped
+  `codecov-action@v3→v4` and let it auto-discover per-module JaCoCo reports (fixes the dead
+  root-report path, L-3); dropped the unused service-container Postgres (unit tests are mocked,
+  IT use Testcontainers).
+
+**Verification (run 2026-06-27):**
+- `mvn -Pintegration-test help:active-profiles` → profile active, inherited from the parent by
+  every module.
+- `mvn -f services/pom.xml validate` → clean (parent pom change parses across the reactor).
+- `docker compose config -q` → OK (the new CI step, validated locally).
+
+**Notes:** the integration suites execute on the Docker-enabled CI runner (the local Docker
+daemon is unavailable, K-5). The 4 legacy per-service surefire `integration-test` profiles are
+superseded by the parent failsafe profile and are functionally harmless (base surefire still
+excludes IT, so no double execution); they can be removed in a later cleanup.

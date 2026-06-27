@@ -9,20 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: smartstock_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
 
     steps:
     - uses: actions/checkout@v4
@@ -30,33 +16,46 @@ jobs:
     - name: Validate Flyway migration versions
       run: bash scripts/check-flyway-versions.sh
 
+    - name: Validate full-stack Docker Compose
+      run: docker compose -f docker-compose.yml config -q
+
     - name: Set up Java
       uses: actions/setup-java@v4
       with:
         java-version: '21'
         distribution: 'temurin'
         cache: maven
-    
+
     - name: Build with Maven
-      run: mvn clean install -DskipTests
-    
-    - name: Run Tests
-      run: mvn test
-    
-    - name: Generate Coverage Report
-      run: mvn jacoco:report
-    
+      run: mvn -B -f services/pom.xml clean install -DskipTests
+
+    - name: Run unit tests
+      run: mvn -B -f services/pom.xml test
+
     - name: Upload Coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
-        files: ./target/site/jacoco/jacoco.xml
+        # Per-module JaCoCo reports (services/<svc>/target/site/jacoco/jacoco.xml) are
+        # auto-discovered; no single root report exists (debt L-3).
         flags: unittests
         name: codecov-umbrella
-    
-    - name: Cache Maven Repository
-      uses: actions/cache@v3
+      continue-on-error: true
+
+  # Integration tests (debt H-7): the Testcontainers suites excluded from `mvn test` run here,
+  # on a Docker-enabled runner, via the failsafe-backed `integration-test` profile. This is the
+  # job that would have caught C-1…C-4 — make it a required check for merges.
+  integration-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
       with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Run integration tests (Testcontainers)
+      run: mvn -B -f services/pom.xml -Pintegration-test verify

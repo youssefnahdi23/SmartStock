@@ -4,8 +4,8 @@ Living log of the stabilization effort. Plan: [stabilization-plan.md](stabilizat
 
 | Milestone | Debt | Status | Commit |
 |-----------|------|--------|--------|
-| M1 | C-1 | ✅ Done | _pending_ |
-| M2 | C-5, M-5 | ⏳ Not started | — |
+| M1 | C-1 | ✅ Done | 84fcba9 |
+| M2 | C-5, M-5 | ✅ Done | _pending_ |
 | M3 | C-4 | ⏳ Not started | — |
 | M4 | C-2 | ⏳ Not started | — |
 | M5 | C-3 | ⏳ Not started | — |
@@ -42,3 +42,46 @@ failure on a fresh DB.
 **Notes:** Full live Flyway `migrate`/`validate` against a Postgres instance is exercised
 by the integration suite (M9) once a Docker host is available (K-5). The static guard
 covers the specific C-1 failure mode deterministically in CI.
+
+---
+
+## M2 — C-5 + M-5: Full-stack compose + runtime verification ✅
+
+**Problem:** `docker-compose.yml` ran infra + 8 DBs + gateway only — the 8 application
+services were never wired in, so there was no one-command full-stack run and therefore no
+way to exercise the wired system (the reason C-1…C-4 went undetected). A deprecated
+`docker-compose.services.yml` duplicated config with the wrong build context and colliding
+ports. **Worse:** every business service's `docker` Spring profile hardcoded a broken
+datasource — host `postgres` (no such container; only `postgres-<svc>` exist) and stale DB
+names (`customer_db`, `purchase_db`, `sales_db`, shared `smartstock`). Because the
+Dockerfiles activate the `docker` profile, these overrode any compose env var → guaranteed
+connection failure on boot.
+
+**Fix:**
+- Rewrote all 7 business-service `application-docker.yml` profiles (product, inventory,
+  warehouse, supplier, customer, purchase-order, sales-order) to clean, **env-driven**
+  config with correct per-service defaults (`postgres-<svc>` / `smartstock_<svc>`),
+  `kafka:29092` internal listener, and consistent actuator/prometheus exposure. Fixed
+  supplier's wrong `server.port: 8080`. identity-service has no docker profile and uses its
+  env-driven base config (correct).
+- Added the 8 application services to [docker-compose.yml](../../docker-compose.yml) on the
+  canonical 800x ports, each with `depends_on` its `postgres-<svc>` + `kafka` at
+  `condition: service_healthy`, env-driven config, and the JWT secret as a `${JWT_SECRET:-<JWT_SECRET>}`
+  placeholder (no hardcoded secret).
+- Removed the deprecated `docker-compose.services.yml`; repointed `Makefile.services`
+  targets to the unified file and corrected the printed URLs to 800x + gateway.
+- Added [scripts/smoke-test.sh](../../scripts/smoke-test.sh) (readiness gate across all 9
+  endpoints + happy-path scaffold) and
+  [runtime-verification.md](runtime-verification.md) documenting the one-command bring-up.
+
+**Verification (run 2026-06-27):**
+- `docker compose config -q` → **OK** (parses + resolves env, no daemon needed).
+- `docker compose config --services` → all 8 app services + gateway + infra present;
+  app-service count = **8**.
+- `bash -n scripts/smoke-test.sh` → syntax OK.
+
+**Notes (honest status):** the Docker **daemon is unavailable here** (K-5), so live
+`docker compose up --build` and `smoke-test.sh` execution remain to be run on a Docker
+host — commands are in runtime-verification.md. Everything that can be validated without a
+daemon (compose parse, service graph, env resolution, script syntax) passes. Live runtime
+proof is folded into M9's Docker-enabled CI job.

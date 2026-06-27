@@ -1,18 +1,25 @@
+# Docker profile — defaults target the docker-compose service network.
+# Every value stays overridable via environment variables passed by compose.
 spring:
   datasource:
-    url: jdbc:postgresql://postgres-inventory:5432/smartstock_inventory
+    url: jdbc:postgresql://${DB_HOST:postgres-inventory}:${DB_PORT:5432}/${DB_NAME:smartstock_inventory}
     username: ${DB_USER:smartstock}
     password: ${DB_PASSWORD:smartstock}
 
   kafka:
-    bootstrap-servers: kafka:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
 
-server:
-  port: 8003
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
 
 logging:
   level:
     root: INFO
     com.smartstock: INFO
-  file:
-    name: ""

@@ -542,6 +542,231 @@ services:
     labels:
       service: gateway
 
+  # ═════════════════════════════════════════════════════════════════════════════
+  # APPLICATION SERVICES
+  # Single-command full-stack run (debt C-5 / M-5). Each service waits for its own
+  # database and Kafka to report healthy. Build requires pre-built JARs:
+  #   mvn -f services/pom.xml clean package -DskipTests
+  #   docker compose up -d --build
+  # All config is env-driven; the `docker` Spring profile carries network defaults.
+  # ═════════════════════════════════════════════════════════════════════════════
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: services/identity-service/Dockerfile
+    container_name: smartstock-identity-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8001
+      DB_HOST: postgres-identity
+      DB_PORT: 5432
+      DB_NAME: smartstock_identity
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-<JWT_SECRET>}
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres-identity:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  product-service:
+    build:
+      context: .
+      dockerfile: services/product-service/Dockerfile
+    container_name: smartstock-product-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8002
+      DB_HOST: postgres-product
+      DB_PORT: 5432
+      DB_NAME: smartstock_product
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-<JWT_SECRET>}
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres-product:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: services/inventory-service/Dockerfile
+    container_name: smartstock-inventory-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8003
+      DB_HOST: postgres-inventory
+      DB_PORT: 5432
+      DB_NAME: smartstock_inventory
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-<JWT_SECRET>}
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres-inventory:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  warehouse-service:
+    build:
+      context: .
+      dockerfile: services/warehouse-service/Dockerfile
+    container_name: smartstock-warehouse-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8004
+      DB_HOST: postgres-warehouse
+      DB_PORT: 5432
+      DB_NAME: smartstock_warehouse
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-<JWT_SECRET>}
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres-warehouse:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  supplier-service:
+    build:
+      context: .
+      dockerfile: services/supplier-service/Dockerfile
+    container_name: smartstock-supplier-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8005
+      DB_HOST: postgres-supplier
+      DB_PORT: 5432
+      DB_NAME: smartstock_supplier
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-<JWT_SECRET>}
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres-supplier:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  customer-service:
+    build:
+      context: .
+      dockerfile: services/customer-service/Dockerfile
+    container_name: smartstock-customer-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8006
+      DB_HOST: postgres-customer
+      DB_PORT: 5432
+      DB_NAME: smartstock_customer
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-<JWT_SECRET>}
+    ports:
+      - "8006:8006"
+    depends_on:
+      postgres-customer:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  purchase-order-service:
+    build:
+      context: .
+      dockerfile: services/purchase-order-service/Dockerfile
+    container_name: smartstock-purchase-order-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8007
+      DB_HOST: postgres-purchase-order
+      DB_PORT: 5432
+      DB_NAME: smartstock_purchase_order
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-<JWT_SECRET>}
+    ports:
+      - "8007:8007"
+    depends_on:
+      postgres-purchase-order:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  sales-order-service:
+    build:
+      context: .
+      dockerfile: services/sales-order-service/Dockerfile
+    container_name: smartstock-sales-order-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8008
+      DB_HOST: postgres-sales-order
+      DB_PORT: 5432
+      DB_NAME: smartstock_sales_order
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-<JWT_SECRET>}
+    ports:
+      - "8008:8008"
+    depends_on:
+      postgres-sales-order:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
 networks:
   smartstock-network:
     driver: bridge

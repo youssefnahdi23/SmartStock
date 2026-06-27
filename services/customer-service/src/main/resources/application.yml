@@ -81,8 +81,11 @@ logging:
     name: logs/customer-service.log
 
 # Transactional outbox relay (debt C-2): this service produces domain events.
+# Consumer hardening (debt H-3): this service also consumes sales-order events.
 smartstock:
   outbox:
     enabled: true
     poll-interval-ms: 2000
     batch-size: 100
+  consumer:
+    enabled: true

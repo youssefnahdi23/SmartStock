@@ -1,5 +1,6 @@
 package com.smartstock.customer.unit;
 
+import com.smartstock.common.consumer.IdempotencyService;
 import com.smartstock.common.event.Topics;
 import com.smartstock.customer.domain.model.Customer;
 import com.smartstock.customer.domain.repository.CustomerRepository;
@@ -19,6 +20,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,6 +29,9 @@ class OrderEventListenerTest {
 
     @Mock
     private CustomerRepository customerRepository;
+
+    @Mock
+    private IdempotencyService idempotencyService;
 
     @InjectMocks
     private OrderEventListener listener;
@@ -39,12 +44,24 @@ class OrderEventListenerTest {
     @DisplayName("records spend on DeliveryCompletedEvent for a known customer")
     void recordsSpendOnCompletion() {
         Customer customer = mock(Customer.class);
+        when(idempotencyService.claim(anyString(), anyString())).thenReturn(true);
         when(customerRepository.findById("cust-1")).thenReturn(Optional.of(customer));
 
         listener.onSalesOrderEvent(completed("cust-1", new BigDecimal("250.00")));
 
         verify(customer).recordOrder(new BigDecimal("250.00"));
         verify(customerRepository).save(customer);
+    }
+
+    @Test
+    @DisplayName("redelivered event is skipped — no double-count (idempotency, H-3)")
+    void redeliveryIsIdempotent() {
+        when(idempotencyService.claim(anyString(), anyString())).thenReturn(false);
+
+        listener.onSalesOrderEvent(completed("cust-1", new BigDecimal("250.00")));
+
+        verify(customerRepository, never()).findById(any());
+        verify(customerRepository, never()).save(any());
     }
 
     @Test
@@ -68,6 +85,7 @@ class OrderEventListenerTest {
     @Test
     @DisplayName("unknown customer does not persist anything")
     void unknownCustomerNoOp() {
+        when(idempotencyService.claim(anyString(), anyString())).thenReturn(true);
         when(customerRepository.findById("ghost")).thenReturn(Optional.empty());
 
         listener.onSalesOrderEvent(completed("ghost", new BigDecimal("10")));

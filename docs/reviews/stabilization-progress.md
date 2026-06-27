@@ -8,8 +8,8 @@ Living log of the stabilization effort. Plan: [stabilization-plan.md](stabilizat
 | M2 | C-5, M-5 | ✅ Done | 6e95aea |
 | M3 | C-4 | ✅ Done | c73fb23 |
 | M4 | C-2 | ✅ Done | f942fbd |
-| M5 | C-3 | ✅ Done | _pending_ |
-| M6 | H-3 | ⏳ Not started | — |
+| M5 | C-3 | ✅ Done | aa90953 |
+| M6 | H-3 | ✅ Done | _pending_ |
 | M7 | H-1 | ⏳ Not started | — |
 | M8 | H-4 | ⏳ Not started | — |
 | M9 | H-7 | ⏳ Not started | — |
@@ -203,3 +203,38 @@ most damaging bug class for an inventory platform, invisible at low load.
   against 100 stock — asserts `on_hand == 100 - 10*successes` and never negative. Compiles;
   runs under the `integration-test` profile / M9 Docker CI (excluded from default `mvn test`).
 - `check-flyway-versions.sh` → OK.
+
+---
+
+## M6 — H-3: Consumer retry, DLQ, idempotency ✅
+
+**Problem:** `OrderEventListener` processed and `save`d with no dedup key, no error handler,
+no DLQ, no retry. Kafka is at-least-once (and the M4 relay can redeliver), so a redelivered
+event would **double-count** `customer.recordOrder(amount)`, and a poison message would block
+the partition forever.
+
+**Fix — shared infrastructure in `common` (`consumer` package):**
+- `IdempotencyService.claim(consumer, eventId)` — `INSERT ... ON CONFLICT DO NOTHING` against a
+  `processed_events` ledger; returns true only the first time a (consumer, eventId) pair is
+  seen. JDBC, runs in the handler's transaction (rolls back with it → reprocess-safe).
+- `ConsumerAutoConfiguration` (registered in `AutoConfiguration.imports`, opt-in via
+  `smartstock.consumer.enabled=true`): a `DefaultErrorHandler` with `ExponentialBackOff`
+  (1s→×2→10s cap, 30s max) + `DeadLetterPublishingRecoverer` routing exhausted records to
+  `<topic>.DLT` instead of wedging the partition. Spring Boot applies this `CommonErrorHandler`
+  bean to the listener container factory automatically. Plus the `IdempotencyService` bean.
+
+**Fix — adoption (customer-service, the only consumer today):**
+- `processed_events` Flyway migration (`V4`).
+- `smartstock.consumer.enabled=true` in `application.yml`.
+- `OrderEventListener` now calls `idempotencyService.claim("customer-order-listener", eventId)`
+  inside its transaction and skips already-processed events — so a redelivered
+  `DeliveryCompletedEvent` records spend exactly once.
+
+**Verification (run 2026-06-27):**
+- `mvn -pl common,customer-service -am test` → **BUILD SUCCESS**; common 8 (incl.
+  `IdempotencyServiceTest` 3), customer 18 (incl. `OrderEventListenerTest` redelivery-is-skipped).
+- `check-flyway-versions.sh` → OK.
+
+**Notes:** the DLT round-trip and live redelivery are exercised by the Testcontainers
+integration suite (M9). The M8 analytics capture sink reuses this same idempotency + error
+handling.

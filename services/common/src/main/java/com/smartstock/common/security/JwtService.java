@@ -1,17 +1,20 @@
-package com.smartstock.inventory.security;
+package com.smartstock.common.security;
 
-import com.smartstock.inventory.config.JwtProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-@Service
+/**
+ * Stateless JWT validation shared by all resource services (debt H-1). This is the canonical copy
+ * of what was duplicated, near-identically, into every service's own {@code security} package —
+ * a single place to fix a validation bug or rotate the signing scheme. (Token <em>issuance</em>
+ * lives only in identity-service and is intentionally not shared.)
+ */
 @RequiredArgsConstructor
 public class JwtService {
 

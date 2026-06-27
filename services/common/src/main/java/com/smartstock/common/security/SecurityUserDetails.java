@@ -1,4 +1,4 @@
-package com.smartstock.sales.security;
+package com.smartstock.common.security;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -9,6 +9,11 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Authenticated principal derived from a validated JWT (debt H-1). Permissions are exposed as
+ * {@code PERMISSION_*} authorities so {@code @PreAuthorize("hasAuthority('PERMISSION_...')")}
+ * works uniformly across services.
+ */
 @Getter
 @Builder
 public class SecurityUserDetails implements UserDetails {

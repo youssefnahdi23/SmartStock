@@ -86,3 +86,5 @@ smartstock:
     enabled: true
     poll-interval-ms: 2000
     batch-size: 100
+  security:
+    enabled: true

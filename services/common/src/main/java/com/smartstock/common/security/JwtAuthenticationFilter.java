@@ -1,4 +1,4 @@
-package com.smartstock.supplier.security;
+package com.smartstock.common.security;
 
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -10,14 +10,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Validates the {@code Authorization: Bearer} JWT on each request and populates the security
+ * context (debt H-1). Shared canonical copy — was byte-identical across the resource services.
+ */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 

@@ -2,7 +2,7 @@ package com.smartstock.supplier.api.controller;
 
 import com.smartstock.supplier.api.dto.request.*;
 import com.smartstock.supplier.api.dto.response.*;
-import com.smartstock.supplier.security.SecurityUserDetails;
+import com.smartstock.common.security.SecurityUserDetails;
 import com.smartstock.supplier.service.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

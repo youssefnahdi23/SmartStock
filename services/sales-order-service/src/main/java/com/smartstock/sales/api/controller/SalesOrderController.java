@@ -2,7 +2,7 @@ package com.smartstock.sales.api.controller;
 
 import com.smartstock.sales.api.dto.request.*;
 import com.smartstock.sales.api.dto.response.*;
-import com.smartstock.sales.security.SecurityUserDetails;
+import com.smartstock.common.security.SecurityUserDetails;
 import com.smartstock.sales.service.SalesOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

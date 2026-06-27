@@ -1,2 +1,3 @@
 com.smartstock.common.outbox.OutboxAutoConfiguration
 com.smartstock.common.consumer.ConsumerAutoConfiguration
+com.smartstock.common.security.SecurityAutoConfiguration

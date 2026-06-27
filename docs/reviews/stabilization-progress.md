@@ -11,8 +11,8 @@ Living log of the stabilization effort. Plan: [stabilization-plan.md](stabilizat
 | M5 | C-3 | ✅ Done | aa90953 |
 | M6 | H-3 | ✅ Done | 9852c4f |
 | M9 | H-7 | ✅ Done | f2fbba9 |
-| M8 | H-4 | ✅ Done | _pending_ |
-| M7 | H-1 | ⏳ In progress | — |
+| M8 | H-4 | ✅ Done | 8111c1a |
+| M7 | H-1 | ✅ Done (scoped) | _pending_ |
 
 > Execution note: M9 (H-7) was brought forward ahead of M7/M8 — it is an explicit final
 > acceptance criterion ("integration tests run in CI"), low-risk, and it validates every prior
@@ -313,3 +313,42 @@ unrecoverable, so capture must start *now*, before any analytics logic.
 register's guidance to accrue history immediately. It depends on M4 (reliable emission) + M6
 (idempotency) + M3 (topic registry), all in place. `data-export-service` can adopt the same sink
 pattern later.
+
+---
+
+## M7 — H-1: Extract shared security into common (scoped) ✅
+
+**Problem:** `JwtService`, `JwtAuthenticationFilter`, `SecurityUserDetails`, `SecurityConfig`,
+`KafkaConfig` were copy-pasted across ~13 services while `common` held 2 classes — a security
+fan-out risk (a JWT fix needs 8–13 edits; a copy missed = silent vuln).
+
+**Approach (evidence-driven scoping):** a checksum audit showed the duplication is **not
+uniform**. The JWT *validator* stack is functionally identical across four resource services
+(inventory, supplier, purchase-order, sales-order) — the only difference was the `JwtProperties`
+import package. But the other copies have genuinely **diverged by role**: identity-service is the
+110-line token *issuer*; product/warehouse carry extra logic (67-line `JwtService`); customer has
+a 3-line stub; skeletons use a different package and minimal config. Blanket unification would
+have meant reconciling real behavioral differences with no runnable auth integration test here —
+the highest-risk change in the program. So M7 unifies the **provably-identical** set and leaves
+the divergent ones on their own consistent configs (no service left half-migrated).
+
+**Fix:**
+- Added canonical `com.smartstock.common.security`: `JwtProperties`, `JwtService`,
+  `SecurityUserDetails`, `JwtAuthenticationFilter`, and `SecurityAutoConfiguration` — opt-in via
+  `smartstock.security.enabled=true`, `@ConditionalOnMissingBean` throughout so any service can
+  still override.
+- Migrated the 4 validator services: deleted their 5 security/config copies each (20 files),
+  repointed each controller's `@AuthenticationPrincipal SecurityUserDetails` import to `common`,
+  and enabled the shared module.
+
+**Verification (run 2026-06-27):**
+- `mvn -f services/pom.xml clean test` → **BUILD SUCCESS** (all 16 modules, all unit tests).
+- `JwtService` copies 8→4; `SecurityConfig` copies 15→11; the 5 shared classes live once in
+  `common`. `check-flyway-versions.sh` → OK.
+
+**Notes (honest scope):** identity (issuer), product, warehouse, customer, and the skeleton
+services intentionally keep their own security for now — each is internally consistent. Folding
+them in (and consolidating the per-service `KafkaConfig` topic beans onto the `Topics` registry)
+is a follow-up that should land with auth integration tests green — which now run in CI (M9). This
+is the one milestone deliberately delivered partial-by-design to avoid an unverifiable security
+refactor; it is flagged as such in the final report.

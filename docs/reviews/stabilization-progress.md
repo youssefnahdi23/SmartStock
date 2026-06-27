@@ -12,7 +12,7 @@ Living log of the stabilization effort. Plan: [stabilization-plan.md](stabilizat
 | M6 | H-3 | ✅ Done | 9852c4f |
 | M9 | H-7 | ✅ Done | f2fbba9 |
 | M8 | H-4 | ✅ Done | 8111c1a |
-| M7 | H-1 | ✅ Done (scoped) | _pending_ |
+| M7 | H-1 | ✅ Done (scoped) | 0556205 |
 
 > Execution note: M9 (H-7) was brought forward ahead of M7/M8 — it is an explicit final
 > acceptance criterion ("integration tests run in CI"), low-risk, and it validates every prior

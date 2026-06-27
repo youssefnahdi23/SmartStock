@@ -26,8 +26,8 @@ public final class Topics {
     /** Emitted by supplier-service. */
     public static final String SUPPLIER_EVENTS = "supplier.events";
 
-    /** Emitted by customer-service. (Legacy wire name; normalize to customer.events in a future contract pass.) */
-    public static final String CUSTOMER_EVENTS = "events.customer";
+    /** Emitted by customer-service. */
+    public static final String CUSTOMER_EVENTS = "customer.events";
 
     /** Emitted by identity-service. */
     public static final String IDENTITY_EVENTS = "identity.events";

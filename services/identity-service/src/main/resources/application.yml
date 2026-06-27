@@ -142,5 +142,4 @@ app:
 
   kafka:
     topics:
-      user-events: identity.user.events
-      auth-events: identity.auth.events
+      events: identity.events

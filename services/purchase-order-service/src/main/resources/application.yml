@@ -79,3 +79,10 @@ logging:
     com.smartstock: DEBUG
   file:
     name: logs/purchase-order-service.log
+
+# Transactional outbox relay (debt C-2): this service produces domain events.
+smartstock:
+  outbox:
+    enabled: true
+    poll-interval-ms: 2000
+    batch-size: 100

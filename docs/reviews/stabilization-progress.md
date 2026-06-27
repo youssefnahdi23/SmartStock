@@ -6,8 +6,8 @@ Living log of the stabilization effort. Plan: [stabilization-plan.md](stabilizat
 |-----------|------|--------|--------|
 | M1 | C-1 | ✅ Done | 84fcba9 |
 | M2 | C-5, M-5 | ✅ Done | 6e95aea |
-| M3 | C-4 | ✅ Done | _pending_ |
-| M4 | C-2 | ⏳ Not started | — |
+| M3 | C-4 | ✅ Done | c73fb23 |
+| M4 | C-2 | ✅ Done | _pending_ |
 | M5 | C-3 | ⏳ Not started | — |
 | M6 | H-3 | ⏳ Not started | — |
 | M7 | H-1 | ⏳ Not started | — |
@@ -124,3 +124,50 @@ Sales-order-service publishes `DeliveryCompletedEvent` (and 6 siblings) to
 **Notes:** redelivery safety (idempotency) + DLQ come in **M6**; this milestone makes the
 flow *correct and live*. Rolling `Topics` constants into the remaining services'
 `KafkaConfig` is folded into the messaging starter in **M7**.
+
+---
+
+## M4 — C-2: Transactional outbox (no fire-and-forget) ✅
+
+**Problem:** All 7 domain-event publishers sent via `@Async KafkaTemplate.send(...)` wrapped
+in a `try/catch` that only logged on failure — the classic dual-write: the DB transaction
+commits, then an asynchronous Kafka send happens *outside* it. Broker down / process dies →
+the event is **lost forever**, leaving downstream state (and the future ML training record)
+permanently divergent with only a log line. (A latent serialization bug was also masked by
+the swallow: a bare `ObjectMapper` can't serialize the events' `LocalDateTime` — the old path
+would have thrown and been silently swallowed.)
+
+**Fix — shared infrastructure in `common`:**
+- `OutboxRecord`, `OutboxRepository` (JDBC, no JPA entity → no `@EntityScan` wiring, and
+  Hibernate `ddl-auto: validate` stays satisfied), `OutboxService` (serialize + insert in the
+  caller's transaction), `OutboxRelay` (`@Scheduled` drain).
+- `OutboxAutoConfiguration` (registered via `AutoConfiguration.imports`), gated by
+  `smartstock.outbox.enabled=true` and `@ConditionalOnClass(KafkaTemplate)`, so only producer
+  services run the relay. The relay uses its **own `acks=all` + idempotent** String producer
+  (max-in-flight=1), so the stored JSON goes out verbatim and reliability config lives in one
+  place. Claims rows with `FOR UPDATE SKIP LOCKED` (multi-instance safe), blocks on the broker
+  ack, marks `PUBLISHED` only on success, bumps `attempts` and stays `PENDING` on failure →
+  at-least-once, no silent loss.
+- Added `spring-kafka` (optional) to the `common` POM.
+
+**Fix — adoption (all 7 producers, no partial migration):**
+- Rewrote inventory, product, warehouse, supplier, customer, purchase-order, sales-order
+  publishers to call `outbox.append(topic, event)` synchronously — **public method signatures
+  unchanged**, so the domain services calling them are untouched. Removed `@Async` and the
+  swallow.
+- Added an `outbox` table Flyway migration to each producer DB (versions: inventory V4,
+  product V3, warehouse V4, supplier V3, customer V3, purchase-order V2, sales-order V2).
+- Enabled `smartstock.outbox.enabled` in each producer's `application.yml`.
+
+**Verification (run 2026-06-27):**
+- `mvn -f services/pom.xml clean test` → **BUILD SUCCESS** (all 16 modules); new
+  `OutboxServiceTest` (serialization + keying) and `OutboxRelayTest` (publish/mark, failure
+  records + stays pending, empty no-op) green.
+- `grep @Async services/**/*EventPublisher.java` → only javadoc mentions; no annotations.
+  `KafkaTemplate.send` in publishers → none.
+- `check-flyway-versions.sh` → OK.
+
+**Notes:** the relay's at-least-once delivery makes **idempotent consumers (M6)** a hard
+requirement, which is the next-priority milestone. Live broker round-trip is covered by the
+Testcontainers integration suite in **M9**. Per-service `AsyncConfig` executor beans are now
+unused but left in place (harmless) — removal is deferred to the M7 shared-starter cleanup.

@@ -355,6 +355,8 @@ services:
       TZ: ${TZ:-UTC}
     volumes:
       - ./infrastructure/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - ./infrastructure/recording_rules.yml:/etc/prometheus/recording_rules.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
@@ -364,6 +366,7 @@ services:
       - "--storage.tsdb.retention.time=7d"
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-remote-write-receiver"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
       interval: 10s
@@ -381,12 +384,17 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
-      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      # grafana-piechart-panel was removed: it is built into Grafana 8+ core and
+      # installing it as a plugin generates a deprecation warning at startup.
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
       GF_LOG_LEVEL: ${LOG_LEVEL:-info}
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor tempoServiceGraph
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - grafana-data:/var/lib/grafana
       - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3000:3000"
     healthcheck:
@@ -542,6 +550,11 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-smartstock123}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: api-gateway
+      # 100% sampling is intentional for local/dev — every request produces a trace.
+      # Production default: lower to 0.01–0.10 (1-10%) via this env var override.
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
       RATE_LIMIT_REPLENISH: ${RATE_LIMIT_REPLENISH:-100}
       RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-200}
       # Downstream service URLs (circuit-broken routes)
@@ -600,6 +613,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: identity-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
     ports:
       - "8001:8001"
     healthcheck:
@@ -635,6 +651,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: product-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
     ports:
       - "8002:8002"
     healthcheck:
@@ -670,6 +689,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: inventory-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
     ports:
       - "8003:8003"
     healthcheck:
@@ -705,6 +727,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: warehouse-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
     ports:
       - "8004:8004"
     healthcheck:
@@ -740,6 +765,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: supplier-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
     ports:
       - "8005:8005"
     healthcheck:
@@ -775,6 +803,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: customer-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
     ports:
       - "8006:8006"
     healthcheck:
@@ -810,6 +841,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: purchase-order-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
     ports:
       - "8007:8007"
     healthcheck:
@@ -845,6 +879,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: sales-order-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
     ports:
       - "8008:8008"
     healthcheck:

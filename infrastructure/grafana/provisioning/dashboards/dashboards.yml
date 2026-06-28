@@ -1,14 +1,16 @@
 # Grafana Dashboards Provisioning
-# Automatically loads dashboards from /var/lib/grafana/dashboards
+# Loads all JSON files from /var/lib/grafana/dashboards into the default org.
 
 apiVersion: 1
 
 providers:
   - name: 'SmartStock Dashboards'
     orgId: 1
-    folder: ''
+    folder: 'SmartStock'
     type: file
     disableDeletion: false
-    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
     options:
       path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

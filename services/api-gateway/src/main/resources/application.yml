@@ -289,7 +289,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics,gateway
+        include: health,info,prometheus,metrics,gateway,loggers
       base-path: /actuator
   endpoint:
     health:

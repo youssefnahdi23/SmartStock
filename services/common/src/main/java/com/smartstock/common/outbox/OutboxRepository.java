@@ -60,4 +60,11 @@ public class OutboxRepository {
         String trimmed = error == null ? null : error.substring(0, Math.min(error.length(), 1000));
         jdbc.update("UPDATE outbox SET attempts = attempts + 1, last_error = ? WHERE id = ?", trimmed, id);
     }
+
+    /** Count of PENDING records — used by the Micrometer outbox queue depth gauge. */
+    public long countPending() {
+        Long count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM outbox WHERE status = 'PENDING'", Long.class);
+        return count != null ? count : 0L;
+    }
 }

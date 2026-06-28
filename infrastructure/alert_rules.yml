@@ -1,0 +1,160 @@
+groups:
+  # ── Service Health ──────────────────────────────────────────────────────────
+  - name: service_health
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        # Scoped to deployed services only (service_layer=~"gateway|core").
+        # Prometheus scrapes skeleton support services too (ports 8009-8014) but they
+        # are not deployed in the compose stack — excluding them prevents permanent
+        # false-positive critical alerts on every `docker compose up`.
+        expr: up{service_layer=~"gateway|core"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.job }} is DOWN"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been unreachable for more than 1 minute."
+          runbook: "Check container logs: docker compose logs {{ $labels.job }}"
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) by (job)
+            /
+            sum(rate(http_server_requests_seconds_count[5m])) by (job)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} error rate is {{ $value | humanizePercentage }} (threshold 5%)."
+
+      - alert: SlowResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (job, le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "p95 latency > 2s on {{ $labels.job }}"
+          description: "{{ $labels.job }} p95 response time is {{ $value | humanizeDuration }}."
+
+      - alert: VerySlowResponseTime
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (job, le)
+          ) > 5
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "p99 latency > 5s on {{ $labels.job }}"
+          description: "{{ $labels.job }} p99 response time is {{ $value | humanizeDuration }}."
+
+  # ── JVM Health ──────────────────────────────────────────────────────────────
+  - name: jvm_health
+    interval: 30s
+    rules:
+      - alert: HighJvmHeapUsage
+        expr: |
+          jvm_memory_used_bytes{area="heap"}
+          / jvm_memory_max_bytes{area="heap"} > 0.80
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "JVM heap > 80% on {{ $labels.job }}"
+          description: "{{ $labels.job }} heap is {{ $value | humanizePercentage }} full. OOM risk."
+
+      - alert: CriticalJvmHeapUsage
+        expr: |
+          jvm_memory_used_bytes{area="heap"}
+          / jvm_memory_max_bytes{area="heap"} > 0.95
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "JVM heap > 95% on {{ $labels.job }} — OOM imminent"
+          description: "{{ $labels.job }} heap is {{ $value | humanizePercentage }} full."
+
+      - alert: HighGcPauseTime
+        expr: |
+          rate(jvm_gc_pause_seconds_sum[5m])
+          / rate(jvm_gc_pause_seconds_count[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "GC pauses averaging > 500ms on {{ $labels.job }}"
+          description: "Average GC pause is {{ $value | humanizeDuration }} on {{ $labels.job }}."
+
+  # ── Database ────────────────────────────────────────────────────────────────
+  - name: database_health
+    interval: 30s
+    rules:
+      - alert: DatabaseConnectionPoolNearExhaustion
+        expr: |
+          hikaricp_connections_active / hikaricp_connections_max > 0.80
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "DB pool > 80% used on {{ $labels.job }}"
+          description: "{{ $labels.job }} pool '{{ $labels.pool }}' is {{ $value | humanizePercentage }} utilised."
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          hikaricp_connections_active / hikaricp_connections_max > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "DB pool critically full on {{ $labels.job }}"
+          description: "{{ $labels.job }} pool '{{ $labels.pool }}' is {{ $value | humanizePercentage }} full. Requests will block."
+
+      - alert: DatabaseConnectionTimeout
+        expr: rate(hikaricp_connections_timeout_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "DB connection timeouts on {{ $labels.job }}"
+          description: "{{ $labels.job }} is experiencing {{ $value | humanize }} connection timeouts/s."
+
+  # ── Business: Inventory ─────────────────────────────────────────────────────
+  - name: inventory_health
+    interval: 60s
+    rules:
+      - alert: OutboxRelayLag
+        expr: smartstock_outbox_queue_depth > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Outbox queue lag on {{ $labels.job }}"
+          description: "{{ $labels.job }} outbox has {{ $value }} unprocessed records. Kafka producer may be stalled."
+
+      - alert: HighKafkaConsumerLag
+        expr: kafka_consumer_fetch_manager_records_lag_max > 1000
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High Kafka consumer lag on {{ $labels.job }}"
+          description: "{{ $labels.job }} consumer lag is {{ $value }} records on topic {{ $labels.topic }}."

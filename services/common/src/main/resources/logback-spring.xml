@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Shared Logback configuration for all SmartStock services.
+  Picked up automatically by Spring Boot from the classpath root via smartstock-common.
+
+  Behaviour by profile:
+    default  — CONSOLE only (no Loki shipping, for local dev without the stack)
+    docker   — CONSOLE + LOKI  (ships structured logs to Loki in the compose network)
+
+  Log format includes traceId/spanId so Loki can link log lines to Tempo traces
+  via Grafana's "derived fields" (datasources.yml → Loki → derivedFields).
+
+  Required env vars in docker profile:
+    LOKI_URL            — e.g. http://loki:3100  (set per-service in docker-compose.yml)
+    spring.application.name — set via application.yml in each service
+-->
+<configuration>
+
+    <!-- Bind spring.application.name so Loki labels know which service sent the log -->
+    <springProperty scope="context" name="APP_NAME"    source="spring.application.name" defaultValue="unknown-service"/>
+    <springProperty scope="context" name="LOKI_URL"    source="loki.url"               defaultValue="http://localhost:3100"/>
+    <!-- ENVIRONMENT is set by docker-compose.yml or defaults to development.
+         Keeps Loki stream labels consistent with the Prometheus `environment` common tag. -->
+    <springProperty scope="context" name="ENVIRONMENT" source="ENVIRONMENT"            defaultValue="development"/>
+
+    <!-- ── Console appender ─────────────────────────────────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <!-- Include traceId + spanId for correlation with Tempo -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:--},%X{spanId:--}] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Loki appender (docker profile only) ─────────────────────────── -->
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>${LOKI_URL}/loki/api/v1/push</url>
+            <connectionTimeoutMs>5000</connectionTimeoutMs>
+            <requestTimeoutMs>5000</requestTimeoutMs>
+        </http>
+        <format>
+            <label>
+                <!-- Labels used for Loki log stream selection in Grafana dashboards.
+                     `environment` mirrors the Prometheus common tag so log/metric filtering is consistent. -->
+                <pattern>app=${APP_NAME},level=%level,host=${HOSTNAME:-local},environment=${ENVIRONMENT}</pattern>
+                <readMarkers>true</readMarkers>
+            </label>
+            <message class="com.github.loki4j.logback.JsonLayout">
+                <appendLineSeparator>false</appendLineSeparator>
+            </message>
+            <sortByTime>true</sortByTime>
+        </format>
+    </appender>
+
+    <!-- ── File appender (local dev, keeps logs/service.log) ────────────── -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/${APP_NAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/${APP_NAME}.%d{yyyy-MM-dd}.gz</fileNamePattern>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:--},%X{spanId:--}] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Async wrapper for Loki to avoid blocking request threads ──────── -->
+    <appender name="ASYNC_LOKI" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="LOKI"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+    </appender>
+
+    <!-- ── Log level tuning ──────────────────────────────────────────────── -->
+    <logger name="com.smartstock"             level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+    <logger name="org.springframework.kafka"  level="INFO"/>
+    <logger name="org.hibernate.SQL"          level="WARN"/>
+    <logger name="org.flywaydb"               level="INFO"/>
+    <logger name="com.zaxxer.hikari"          level="WARN"/>
+
+    <!-- ── Profile: default (local dev — no Loki) ───────────────────────── -->
+    <springProfile name="!docker">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+        </root>
+    </springProfile>
+
+    <!-- ── Profile: docker (container — ship to Loki) ───────────────────── -->
+    <springProfile name="docker">
+        <logger name="com.smartstock" level="INFO" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_LOKI"/>
+        </logger>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_LOKI"/>
+        </root>
+    </springProfile>
+
+</configuration>

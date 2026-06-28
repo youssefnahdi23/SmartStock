@@ -1,41 +1,77 @@
 # Grafana Datasources Provisioning
-# Automatically configures Prometheus, Loki, and Tempo as datasources
+# Configures Prometheus, Loki, and Tempo with explicit UIDs so that
+# cross-datasource correlations (trace→log, trace→metric, log→trace) resolve
+# correctly across dashboard imports.
 
 apiVersion: 1
 
 datasources:
-  # Prometheus - Metrics
+  # ── Prometheus — Metrics ────────────────────────────────────────────────────
   - name: Prometheus
     type: prometheus
+    uid: prometheus-ds
     url: http://prometheus:9090
     access: proxy
     isDefault: true
     editable: true
     jsonData:
-      timeInterval: 30s
+      timeInterval: 15s
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo-ds
     version: 1
 
-  # Loki - Logs
+  # ── Loki — Logs ─────────────────────────────────────────────────────────────
   - name: Loki
     type: loki
+    uid: loki-ds
     url: http://loki:3100
     access: proxy
     editable: true
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          # Loki4j JsonLayout emits the log body as JSON, so traceId appears as
+          # "traceId":"<32-hex>". The old key=value pattern never matched.
+          matcherRegex: '"traceId":"([a-f0-9]{32})"'
+          url: '$${__value.raw}'
+          datasourceUid: tempo-ds
+          urlDisplayLabel: "View trace in Tempo"
     version: 1
 
-  # Tempo - Traces
+  # ── Tempo — Distributed Traces ──────────────────────────────────────────────
   - name: Tempo
     type: tempo
+    uid: tempo-ds
     url: http://tempo:3200
     access: proxy
     editable: true
     jsonData:
+      # Link traces → Loki logs using the traceId label
+      tracesToLogsV2:
+        datasourceUid: loki-ds
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: false
+      # Link traces → Prometheus metrics for the same service + time window
+      tracesToMetrics:
+        datasourceUid: prometheus-ds
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'
+        queries:
+          - name: "Request rate"
+            query: 'sum(rate(http_server_requests_seconds_count{job="$${__tags.service.name}"}[$__rate_interval])) by (status)'
+      # Service map from Tempo metrics_generator → Prometheus
       serviceMap:
-        enabled: true
-      search:
-        enabled: true
+        datasourceUid: prometheus-ds
+      # Enable node graph for service topology
       nodeGraph:
         enabled: true
+      # Enable trace search
+      search:
+        enabled: true
       lokiSearch:
-        datasourceUid: loki_uid
+        datasourceUid: loki-ds
     version: 1

@@ -14,16 +14,16 @@ global:
     monitor: 'smartstock-monitor'
     environment: 'development'
 
-# Alertmanager configuration
+# Alertmanager configuration (no alertmanager in dev — alerts fire in Prometheus UI only)
 alerting:
   alertmanagers:
     - static_configs:
         - targets: []
 
-# Load rules once and periodically evaluate them
+# Alert + recording rules
 rule_files:
-  # - "alert_rules.yml"
-  # - "recording_rules.yml"
+  - "alert_rules.yml"
+  - "recording_rules.yml"
 
 # Scrape configurations
 scrape_configs:
@@ -32,61 +32,85 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
+  # Tempo metrics generator (service graphs + span RED metrics)
+  - job_name: 'tempo'
+    static_configs:
+      - targets: ['tempo:3200']
+    metrics_path: '/metrics'
+
   # ── API Gateway (reactive, actuator at /actuator) ──────────────────────────
   - job_name: 'api-gateway'
     metrics_path: '/actuator/prometheus'
-    scrape_interval: 30s
+    scrape_interval: 15s
     static_configs:
       - targets: ['api-gateway:8080']
+        labels:
+          service_layer: gateway
 
   # ── Implemented business services (context-path /api/v1) ───────────────────
   - job_name: 'identity-service'
     metrics_path: '/api/v1/actuator/prometheus'
-    scrape_interval: 30s
+    scrape_interval: 15s
     static_configs:
       - targets: ['identity-service:8001']
+        labels:
+          service_layer: core
 
   - job_name: 'product-service'
     metrics_path: '/api/v1/actuator/prometheus'
-    scrape_interval: 30s
+    scrape_interval: 15s
     static_configs:
       - targets: ['product-service:8002']
+        labels:
+          service_layer: core
 
   - job_name: 'inventory-service'
     metrics_path: '/api/v1/actuator/prometheus'
-    scrape_interval: 30s
+    scrape_interval: 15s
     static_configs:
       - targets: ['inventory-service:8003']
+        labels:
+          service_layer: core
 
   - job_name: 'warehouse-service'
     metrics_path: '/api/v1/actuator/prometheus'
-    scrape_interval: 30s
+    scrape_interval: 15s
     static_configs:
       - targets: ['warehouse-service:8004']
+        labels:
+          service_layer: core
 
   - job_name: 'supplier-service'
     metrics_path: '/api/v1/actuator/prometheus'
-    scrape_interval: 30s
+    scrape_interval: 15s
     static_configs:
       - targets: ['supplier-service:8005']
+        labels:
+          service_layer: core
 
   - job_name: 'customer-service'
     metrics_path: '/api/v1/actuator/prometheus'
-    scrape_interval: 30s
+    scrape_interval: 15s
     static_configs:
       - targets: ['customer-service:8006']
+        labels:
+          service_layer: core
 
   - job_name: 'purchase-order-service'
     metrics_path: '/api/v1/actuator/prometheus'
-    scrape_interval: 30s
+    scrape_interval: 15s
     static_configs:
       - targets: ['purchase-order-service:8007']
+        labels:
+          service_layer: core
 
   - job_name: 'sales-order-service'
     metrics_path: '/api/v1/actuator/prometheus'
-    scrape_interval: 30s
+    scrape_interval: 15s
     static_configs:
       - targets: ['sales-order-service:8008']
+        labels:
+          service_layer: core
 
   # ── Skeleton services (not yet feature-complete; metrics exposed) ──────────
   - job_name: 'audit-service'
@@ -94,36 +118,48 @@ scrape_configs:
     scrape_interval: 30s
     static_configs:
       - targets: ['audit-service:8009']
+        labels:
+          service_layer: support
 
   - job_name: 'notification-service'
     metrics_path: '/api/v1/actuator/prometheus'
     scrape_interval: 30s
     static_configs:
       - targets: ['notification-service:8010']
+        labels:
+          service_layer: support
 
   - job_name: 'reporting-service'
     metrics_path: '/api/v1/actuator/prometheus'
     scrape_interval: 30s
     static_configs:
       - targets: ['reporting-service:8011']
+        labels:
+          service_layer: support
 
   - job_name: 'analytics-service'
     metrics_path: '/api/v1/actuator/prometheus'
     scrape_interval: 30s
     static_configs:
       - targets: ['analytics-service:8012']
+        labels:
+          service_layer: support
 
   - job_name: 'data-export-service'
     metrics_path: '/api/v1/actuator/prometheus'
     scrape_interval: 30s
     static_configs:
       - targets: ['data-export-service:8013']
+        labels:
+          service_layer: support
 
   - job_name: 'order-service'
     metrics_path: '/api/v1/actuator/prometheus'
     scrape_interval: 30s
     static_configs:
       - targets: ['order-service:8014']
+        labels:
+          service_layer: support
 
   # ── Optional infrastructure exporters (enable when deployed) ───────────────
   # - job_name: 'postgres'

@@ -1,8 +1,10 @@
 package com.smartstock.common.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
@@ -68,5 +70,11 @@ public class OutboxAutoConfiguration {
                                    KafkaTemplate<String, String> outboxKafkaTemplate,
                                    @org.springframework.beans.factory.annotation.Value("${smartstock.outbox.batch-size:100}") int batchSize) {
         return new OutboxRelay(repository, outboxKafkaTemplate, batchSize);
+    }
+
+    @Bean
+    @ConditionalOnBean(MeterRegistry.class)
+    public OutboxQueueDepthBinder outboxQueueDepthBinder(OutboxRepository repository) {
+        return new OutboxQueueDepthBinder(repository);
     }
 }

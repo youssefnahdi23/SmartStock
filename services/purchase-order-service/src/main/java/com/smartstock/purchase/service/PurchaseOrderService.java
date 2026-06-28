@@ -194,11 +194,19 @@ public class PurchaseOrderService {
 
         log.info("Delivery registered: poId={} deliveryId={} received={} by={}", poId, delivery.getId(), totalReceived, actorId);
 
+        List<DeliveryRegisteredEvent.ReceivedItem> receivedEventItems = deliveryItems.stream()
+                .map(di -> new DeliveryRegisteredEvent.ReceivedItem(
+                        di.getProductId(),
+                        di.getReceivedQuantity() != null ? di.getReceivedQuantity() : 0,
+                        di.getDamageCount() != null ? di.getDamageCount() : 0,
+                        null))
+                .toList();
+
         eventPublisher.publishDeliveryRegistered(new DeliveryRegisteredEvent(
                 po.getId(), po.getPoNumber(), po.getSupplierId(),
                 delivery.getId(), po.getDeliveryWarehouseId(),
                 req.getDeliveryDate(), totalReceived, totalDamage,
-                po.getStatus(), receivedAt, actorId));
+                po.getStatus(), receivedAt, actorId, receivedEventItems));
 
         return DeliveryResponse.builder()
                 .deliveryId(delivery.getId())

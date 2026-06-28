@@ -32,7 +32,11 @@ public class ReservationService {
 
     @PreAuthorize("hasAuthority('PERMISSION_stock:reserve')")
     public ReservationResponse reserve(ReservationRequest req, String actorId) {
-        // Retry on optimistic-lock conflict so concurrent reservations cannot over-reserve.
+        return concurrencyRetry.execute(() -> self.getObject().reserveTransactional(req, actorId));
+    }
+
+    /** Called by Kafka consumers (no security context); retries on optimistic-lock conflict. */
+    public ReservationResponse reserveInternal(ReservationRequest req, String actorId) {
         return concurrencyRetry.execute(() -> self.getObject().reserveTransactional(req, actorId));
     }
 

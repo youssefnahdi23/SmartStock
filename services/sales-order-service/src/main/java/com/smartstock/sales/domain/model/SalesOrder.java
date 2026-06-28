@@ -26,6 +26,12 @@ public class SalesOrder {
     @Column(length = 36)
     private String id;
 
+    // Optimistic lock (S-5): prevents concurrent status transitions (e.g. two confirmations
+    // or a confirm racing with a cancel) from clobbering each other.
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "so_number", nullable = false, length = 100)
     private String soNumber;
 

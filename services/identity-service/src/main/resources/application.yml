@@ -47,11 +47,8 @@ spring:
       retries: 3
       properties:
         spring.json.add.type.headers: false
-    consumer:
-      group-id: identity-service
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+    # identity-service is a pure producer — it has no @KafkaListener and
+    # smartstock.consumer.enabled is not set, so no consumer config is needed.
 
   jackson:
     serialization:
@@ -143,3 +140,9 @@ app:
   kafka:
     topics:
       events: identity.events
+
+smartstock:
+  outbox:
+    enabled: true
+    poll-interval-ms: 2000
+    batch-size: 100

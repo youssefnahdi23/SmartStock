@@ -230,6 +230,40 @@ public class SupplierDeliveryService {
                 null, avgLeadTimeDays));
     }
 
+    /**
+     * Called by the Kafka consumer (no security context) when a DeliveryRegisteredEvent arrives
+     * from purchase-order-service. Idempotent: if the delivery number already exists, the call
+     * is silently skipped — the idempotency ledger provides the primary guard.
+     */
+    @Transactional
+    public void registerDeliveryFromPurchaseOrderEvent(
+            String supplierId, String purchaseOrderId, String deliveryId,
+            LocalDate deliveryDate, int totalReceived, String receivedBy) {
+
+        String deliveryNumber = "PO-DEL-" + deliveryId;
+        if (deliveryRepository.existsByDeliveryNumber(deliveryNumber)) {
+            log.debug("Delivery already registered for deliveryId={}, skipping", deliveryId);
+            return;
+        }
+
+        LocalDate today = LocalDate.now();
+        SupplierDelivery delivery = SupplierDelivery.builder()
+                .supplierId(supplierId)
+                .purchaseOrderId(purchaseOrderId)
+                .deliveryNumber(deliveryNumber)
+                .orderDate(deliveryDate != null ? deliveryDate : today)
+                .promisedDeliveryDate(deliveryDate != null ? deliveryDate : today)
+                .actualDeliveryDate(deliveryDate != null ? deliveryDate : today)
+                .quantityOrdered(totalReceived)
+                .quantityReceived(totalReceived)
+                .deliveryStatus("DELIVERED")
+                .build();
+
+        delivery = deliveryRepository.save(delivery);
+        log.info("Supplier delivery auto-created from PO event: supplierId={} deliveryId={}",
+                supplierId, delivery.getId());
+    }
+
     private DeliveryResponse toResponse(SupplierDelivery d) {
         return DeliveryResponse.builder()
                 .id(d.getId())

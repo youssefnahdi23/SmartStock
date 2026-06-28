@@ -14,11 +14,11 @@ import com.smartstock.inventory.exception.InsufficientStockException;
 import com.smartstock.inventory.exception.InventoryLevelNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
 @Slf4j
@@ -30,10 +30,18 @@ public class TransferService {
     private final StockMovementRepository stockMovementRepository;
     private final StockTransferRepository stockTransferRepository;
     private final InventoryEventPublisher eventPublisher;
+    private final ConcurrencyRetry concurrencyRetry;
+    // Self-proxy so each retry attempt runs in its own fresh transaction, re-reading both
+    // InventoryLevel rows. ObjectProvider breaks the self-referential constructor cycle.
+    private final ObjectProvider<TransferService> self;
 
-    @Transactional
     @PreAuthorize("hasAuthority('PERMISSION_inventory:write') and hasAuthority('PERMISSION_stock:transfer')")
     public TransferResponse transfer(TransferRequest req, String actorId) {
+        return concurrencyRetry.execute(() -> self.getObject().transferTransactional(req, actorId));
+    }
+
+    @Transactional
+    public TransferResponse transferTransactional(TransferRequest req, String actorId) {
         if (req.getFromWarehouseId().equals(req.getToWarehouseId())) {
             throw new IllegalArgumentException("Source and destination warehouses must be different");
         }

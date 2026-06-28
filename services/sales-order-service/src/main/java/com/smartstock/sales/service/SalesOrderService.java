@@ -128,9 +128,13 @@ public class SalesOrderService {
 
         log.info("SalesOrder confirmed: soId={} warehouseId={} by={}", soId, req.getWarehouseId(), actorId);
 
+        List<SalesOrderConfirmedEvent.LineItem> confirmedItems = so.getLineItems().stream()
+                .map(li -> new SalesOrderConfirmedEvent.LineItem(li.getProductId(), li.getQuantityOrdered()))
+                .toList();
+
         eventPublisher.publishSalesOrderConfirmed(new SalesOrderConfirmedEvent(
                 so.getId(), so.getSoNumber(), so.getCustomerId(),
-                so.getPickingWarehouseId(), so.getConfirmationDate(), actorId));
+                so.getPickingWarehouseId(), so.getConfirmationDate(), actorId, confirmedItems));
 
         return toResponse(so);
     }

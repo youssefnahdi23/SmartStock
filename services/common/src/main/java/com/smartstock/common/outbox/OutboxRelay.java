@@ -43,8 +43,14 @@ public class OutboxRelay {
                 // Block on the broker ack so a failure keeps the row PENDING (no false success).
                 kafkaTemplate.send(record.topic(), record.eventKey(), record.payload()).get();
                 repository.markPublished(record.id());
-            } catch (Exception ex) {
+            } catch (InterruptedException ex) {
+                // Restore the interrupt flag so the scheduler sees the signal and shuts down
+                // cleanly; do NOT record a failure — the row stays PENDING and will be retried.
                 Thread.currentThread().interrupt();
+                log.warn("Outbox relay interrupted while waiting for broker ack (id={}); stopping tick",
+                        record.id());
+                break;
+            } catch (Exception ex) {
                 repository.recordFailure(record.id(), ex.getMessage());
                 log.warn("Outbox relay failed for id={} topic={} (attempt {}): {}",
                         record.id(), record.topic(), record.attempts() + 1, ex.getMessage());

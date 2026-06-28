@@ -29,8 +29,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
-    @Mock private UserRepository userRepository;
-    @Mock private RoleRepository roleRepository;
+    @Mock private UserRepository       userRepository;
+    @Mock private RoleRepository       roleRepository;
+    @Mock private IdentityEventPublisher eventPublisher;
 
     @InjectMocks
     private UserService userService;

@@ -73,7 +73,7 @@ class TransferServiceUnitTest {
         when(stockMovementRepository.save(any())).thenReturn(movement);
         when(stockTransferRepository.save(any())).thenReturn(transfer);
 
-        TransferResponse result = transferService.transfer(req, "user-001");
+        TransferResponse result = transferService.transferTransactional(req, "user-001");
 
         assertThat(result.getTransferId()).isEqualTo("txfr-001");
         assertThat(fromLevel.getQuantityOnHand()).isEqualTo(75);
@@ -96,7 +96,7 @@ class TransferServiceUnitTest {
         when(inventoryLevelRepository.findByProductIdAndWarehouseId("prod-001", "wh-001"))
                 .thenReturn(Optional.of(fromLevel));
 
-        assertThatThrownBy(() -> transferService.transfer(req, "user-001"))
+        assertThatThrownBy(() -> transferService.transferTransactional(req, "user-001"))
                 .isInstanceOf(InsufficientStockException.class);
     }
 
@@ -108,7 +108,7 @@ class TransferServiceUnitTest {
         req.setToWarehouseId("wh-001");
         req.setQuantity(10);
 
-        assertThatThrownBy(() -> transferService.transfer(req, "user-001"))
+        assertThatThrownBy(() -> transferService.transferTransactional(req, "user-001"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("different");
     }

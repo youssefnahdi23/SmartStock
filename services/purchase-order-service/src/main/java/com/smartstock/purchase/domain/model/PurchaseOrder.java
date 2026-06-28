@@ -26,6 +26,12 @@ public class PurchaseOrder {
     @Column(length = 36)
     private String id;
 
+    // Optimistic lock (S-5): prevents concurrent read-modify-write lost updates on PO status
+    // transitions (e.g. two confirmations racing). Hibernate bumps this on every UPDATE.
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "po_number", nullable = false, length = 100)
     private String poNumber;
 

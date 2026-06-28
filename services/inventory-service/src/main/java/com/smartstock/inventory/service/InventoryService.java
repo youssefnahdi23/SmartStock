@@ -44,6 +44,12 @@ public class InventoryService {
     @Transactional
     @PreAuthorize("hasAuthority('PERMISSION_inventory:write') and hasAuthority('PERMISSION_stock:in')")
     public StockTransactionResponse receiveStock(StockInRequest req, String actorId) {
+        return receiveStockInternal(req, actorId);
+    }
+
+    /** Called by Kafka consumers (no security context); delegates to the shared implementation. */
+    @Transactional
+    public StockTransactionResponse receiveStockInternal(StockInRequest req, String actorId) {
         InventoryLevel level = inventoryLevelRepository
                 .findByProductIdAndWarehouseId(req.getProductId(), req.getWarehouseId())
                 .orElseGet(() -> InventoryLevel.builder()

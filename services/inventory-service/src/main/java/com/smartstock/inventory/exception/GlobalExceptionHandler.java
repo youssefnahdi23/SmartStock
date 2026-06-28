@@ -3,6 +3,7 @@ package com.smartstock.inventory.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -32,6 +33,16 @@ public class GlobalExceptionHandler {
         Map<String, Object> body = errorBody("VALIDATION_FAILED", "Request validation failed");
         body.put("fieldErrors", fieldErrors);
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
+    }
+
+    // Surfaces when ConcurrencyRetry exhausts all attempts without a successful commit.
+    // Returning 409 Conflict tells callers the write was rejected due to contention, not a bug.
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
+        log.warn("Optimistic lock exhausted after retries: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(errorBody("CONCURRENT_MODIFICATION",
+                        "The resource was modified by a concurrent request. Please retry."));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

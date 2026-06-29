@@ -18,7 +18,10 @@ public abstract class AbstractIntegrationTest {
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("smartstock_identity_test")
                     .withUsername("smartstock")
-                    .withPassword("smartstock");
+                    .withPassword("smartstock")
+                    // jsonb columns (e.g. audit_logs.old_values/new_values) are mapped from String;
+                    // let PostgreSQL infer the type instead of rejecting the varchar binding.
+                    .withUrlParam("stringtype", "unspecified");
 
     @BeforeAll
     static void startContainers() {
@@ -33,8 +36,10 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.flyway.url",          POSTGRES::getJdbcUrl);
         registry.add("spring.flyway.user",         POSTGRES::getUsername);
         registry.add("spring.flyway.password",     POSTGRES::getPassword);
-        // Disable Kafka in tests
-        registry.add("spring.autoconfigure.exclude",
-                () -> "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration");
+        // Keep Kafka auto-configuration so KafkaProperties (required by the transactional outbox)
+        // is available, but never contact a broker in tests: producers are lazy, and listener
+        // containers are kept from starting.
+        registry.add("spring.kafka.bootstrap-servers", () -> "localhost:9092");
+        registry.add("spring.kafka.listener.auto-startup", () -> "false");
     }
 }

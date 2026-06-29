@@ -288,6 +288,39 @@ inconsistent (`identity` matches `TestJwtTokenFactory.TEST_SECRET`; `inventory`/
 `purchase-order` use different secrets; `product`/`customer`/`sales-order` have no
 `application-test.yml`).
 
+### 7.2 Integration suite — local triage & real-defect backlog (2026-06-29)
+
+With a local Docker host available, the integration suites were reproduced and triaged
+(identity-service taken end-to-end as the template). The failures are a **chain of root causes**,
+not flaky tests. Test-infrastructure causes were fixed in this commit; the remainder are **real
+application/config defects** left for deliberate Phase-8 fixing (no production code changed here).
+
+**Fixed now (test-infrastructure, safe):**
+
+- **TI-1 — `KafkaAutoConfiguration` excluded in `application-test.yml` removed `KafkaProperties`,
+  which the transactional outbox requires → `@SpringBootTest` context failed to load.** Fixed by
+  keeping Kafka auto-config and instead disabling listener auto-startup (`spring.kafka.listener.
+  auto-startup=false`) so tests stay broker-free. Applied to **identity, inventory, supplier,
+  warehouse** (notification keeps the exclusion — it has no outbox). This moved identity from
+  *0 passing* to *context loads + ~half passing*.
+- **TI-2 — local Testcontainers ↔ Docker Engine 29 API mismatch** (npipe `400 BadRequest`).
+  Developer-machine fix: `~/.docker-java.properties` → `api.version=1.43` (+ `.testcontainers.
+  properties`). Not a repo change; document in the contributor guide. CI (Ubuntu Docker) is
+  unaffected.
+
+**Real defects — Phase-8 backlog (NOT changed; needs review):**
+
+| ID | Sev | Service(s) | Defect & root cause | Suggested fix |
+|----|-----|-----------|---------------------|---------------|
+| BUG-1 | High | identity (audit) | `audit_logs.old_values/new_values` are `String` mapped to `jsonb`; PostgreSQL rejects the `varchar` binding → `DataIntegrityViolationException` → 500 on any audited action. Prod JDBC URL has no `stringtype=unspecified`. Tests worked around with `stringtype=unspecified` on the Testcontainers URL. | `@JdbcTypeCode(SqlTypes.JSON)` on the fields, **or** `stringtype=unspecified` on the prod datasource URL. |
+| BUG-2 | High | identity (auth) | Login violates unique index `refresh_tokens_token_key` → 500 on repeated/rapid logins. `AuthService.login` does `revokeAllByUserId` (sets `revoked=true`, does not free the unique `token` value) then inserts; `generateRefreshToken` is not unique per call within the same second. | Add a random `jti` to the refresh token; and/or delete (not just flag) superseded tokens, or scope uniqueness to active tokens. |
+| BUG-3 | Med | identity (+ likely others) | Assertion tail once 500s clear: actuator health path/shape, several 401/403 RBAC expectations, OpenAPI docs path, oversized-field→422, WireMock regression stubs. Mix of real behavior gaps and test-expectation bugs. | Triage each against actual behavior; fix test or app per case. |
+| BUG-4 | Med | product, customer, inventory, warehouse, supplier, purchase-order, sales-order | Not yet individually triaged. Expect a similar chain after TI-1 lands. | Run each `mvn -pl <svc> verify -Pintegration-test` under Docker and triage. |
+| BUG-5 | Low | inventory/warehouse/purchase-order + product/customer/sales-order | Test JWT config inconsistent / missing `application-test.yml` (see §7.1). | Standardize on one shared test secret/config. |
+
+**Re-promotion criterion:** once a service's IT suite is green under Docker, remove its
+`continue-on-error` and return it to the blocking `qa-gate` `needs`.
+
 ---
 
 ## 8. Recommended Commit

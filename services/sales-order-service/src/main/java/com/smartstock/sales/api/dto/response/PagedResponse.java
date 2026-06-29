@@ -1,0 +1,24 @@
+package com.smartstock.sales.api.dto.response;
+
+import lombok.Builder;
+import lombok.Data;
+
+import java.time.Instant;
+import java.util.List;
+
+@Data
+@Builder
+public class PagedResponse<T> {
+    private List<T> data;
+    private Meta meta;
+
+    @Data
+    @Builder
+    public static class Meta {
+        private Instant timestamp;
+        private int page;
+        private int size;
+        private long total;
+        private int totalPages;
+    }
+}

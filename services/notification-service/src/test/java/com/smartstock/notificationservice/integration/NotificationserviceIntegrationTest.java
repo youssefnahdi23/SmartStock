@@ -1,4 +1,4 @@
-package com.smartstock.notificationService.integration;
+package com.smartstock.notificationservice.integration;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

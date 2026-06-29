@@ -1,33 +1,20 @@
-# Build stage
-FROM eclipse-temurin:21-jdk-alpine as builder
-
-WORKDIR /build
-
-# Copy Maven files
-COPY pom.xml .
-COPY parent-pom.xml ../pom.xml 2>/dev/null || true
-
-# Copy source code
-COPY src ./src
-
-# Build application
-RUN chmod +x ./mvnw 2>/dev/null || apk add --no-cache maven \
-    && mvn clean package -DskipTests -q
-
-# Runtime stage
 FROM eclipse-temurin:21-jre-alpine
 
-ARG JAR_FILE=build/target/*.jar
+RUN addgroup -S smartstock && adduser -S inventory -G smartstock
 
+USER inventory
 WORKDIR /app
 
-# Copy jar from builder
-COPY --from=builder /build/target/*.jar app.jar
+COPY services/inventory-service/target/smartstock-inventory-service-*.jar app.jar
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/health/status || exit 1
+EXPOSE 8003
 
-EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget -qO- http://localhost:8003/api/v1/actuator/health | grep -q '"status":"UP"' || exit 1
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", \
+    "-XX:+UseContainerSupport", \
+    "-XX:MaxRAMPercentage=75.0", \
+    "-Djava.security.egd=file:/dev/./urandom", \
+    "-Dspring.profiles.active=docker", \
+    "-jar", "app.jar"]

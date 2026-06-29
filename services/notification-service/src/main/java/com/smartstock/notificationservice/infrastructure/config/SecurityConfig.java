@@ -1,4 +1,4 @@
-package com.smartstock.notificationService.infrastructure.config;
+package com.smartstock.notificationservice.infrastructure.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

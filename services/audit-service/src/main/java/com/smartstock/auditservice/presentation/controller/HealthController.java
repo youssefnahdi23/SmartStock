@@ -1,4 +1,4 @@
-package com.smartstock.auditService.presentation.controller;
+package com.smartstock.auditservice.presentation.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

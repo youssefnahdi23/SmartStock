@@ -1,4 +1,4 @@
-package com.smartstock.reportingService;
+package com.smartstock.reportingservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

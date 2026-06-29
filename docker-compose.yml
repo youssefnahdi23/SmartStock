@@ -1,22 +1,26 @@
 version: '3.8'
 
-# SmartStock AI - Complete Development Infrastructure
-# Includes: Databases, Message Brokers, Caching, Observability, Logging, Tracing
-# For development and local testing only
-# Production: Use Kubernetes (see ADR-0010)
-
-# All configuration via environment variables
-# Copy .env.example to .env and customize as needed
+# SmartStock AI — Full-Stack Docker Compose (Stabilization M-2)
+#
+# One-command startup:
+#   cp .env.example .env          # fill in JWT_SECRET at minimum
+#   mvn -f services/pom.xml clean package -DskipTests
+#   docker compose up -d --build
+#   bash scripts/smoke-test.sh
+#
+# All configuration is driven by environment variables.
+# Copy .env.example to .env and override values as needed.
+# NO hardcoded secrets — every sensitive value reads from the .env file.
 
 services:
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   # DATABASES
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
 
-  # PostgreSQL - Identity Service
   postgres-identity:
     image: postgres:16-alpine
     container_name: smartstock-postgres-identity
+    restart: unless-stopped
     environment:
       POSTGRES_DB: smartstock_identity
       POSTGRES_USER: ${DB_USER:-smartstock}
@@ -37,10 +41,10 @@ services:
       service: postgres
       database: identity
 
-  # PostgreSQL - Product Service
   postgres-product:
     image: postgres:16-alpine
     container_name: smartstock-postgres-product
+    restart: unless-stopped
     environment:
       POSTGRES_DB: smartstock_product
       POSTGRES_USER: ${DB_USER:-smartstock}
@@ -61,10 +65,10 @@ services:
       service: postgres
       database: product
 
-  # PostgreSQL - Inventory Service
   postgres-inventory:
     image: postgres:16-alpine
     container_name: smartstock-postgres-inventory
+    restart: unless-stopped
     environment:
       POSTGRES_DB: smartstock_inventory
       POSTGRES_USER: ${DB_USER:-smartstock}
@@ -85,10 +89,10 @@ services:
       service: postgres
       database: inventory
 
-  # PostgreSQL - Warehouse Service
   postgres-warehouse:
     image: postgres:16-alpine
     container_name: smartstock-postgres-warehouse
+    restart: unless-stopped
     environment:
       POSTGRES_DB: smartstock_warehouse
       POSTGRES_USER: ${DB_USER:-smartstock}
@@ -109,21 +113,120 @@ services:
       service: postgres
       database: warehouse
 
-  # ═════════════════════════════════════════════════════════════════════════════
-  # CACHING & SESSION STORE
-  # ═════════════════════════════════════════════════════════════════════════════
+  postgres-supplier:
+    image: postgres:16-alpine
+    container_name: smartstock-postgres-supplier
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smartstock_supplier
+      POSTGRES_USER: ${DB_USER:-smartstock}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-supplier-data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartstock} -d smartstock_supplier"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartstock-network
+    labels:
+      service: postgres
+      database: supplier
 
-  # Redis - Caching & Sessions (ADR-0011)
+  postgres-customer:
+    image: postgres:16-alpine
+    container_name: smartstock-postgres-customer
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smartstock_customer
+      POSTGRES_USER: ${DB_USER:-smartstock}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-customer-data:/var/lib/postgresql/data
+    ports:
+      - "5437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartstock} -d smartstock_customer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartstock-network
+    labels:
+      service: postgres
+      database: customer
+
+  postgres-purchase-order:
+    image: postgres:16-alpine
+    container_name: smartstock-postgres-purchase-order
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smartstock_purchase_order
+      POSTGRES_USER: ${DB_USER:-smartstock}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-purchase-order-data:/var/lib/postgresql/data
+    ports:
+      - "5438:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartstock} -d smartstock_purchase_order"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartstock-network
+    labels:
+      service: postgres
+      database: purchase-order
+
+  postgres-sales-order:
+    image: postgres:16-alpine
+    container_name: smartstock-postgres-sales-order
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smartstock_sales_order
+      POSTGRES_USER: ${DB_USER:-smartstock}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-sales-order-data:/var/lib/postgresql/data
+    ports:
+      - "5439:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartstock} -d smartstock_sales_order"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartstock-network
+    labels:
+      service: postgres
+      database: sales-order
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # CACHING & SESSION STORE
+  # ═══════════════════════════════════════════════════════════════════════════
+
   redis:
     image: redis:7-alpine
     container_name: smartstock-redis
+    restart: unless-stopped
+    # REDIS_PASSWORD is set as an env var so healthcheck can reference it via $$REDIS_PASSWORD
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-smartstock123}
     command: redis-server --requirepass ${REDIS_PASSWORD:-smartstock123} --appendonly yes
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -132,14 +235,14 @@ services:
     labels:
       service: cache
 
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   # MESSAGE BROKERS
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
 
-  # Kafka - Event Streaming (ADR-0004)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
     container_name: smartstock-zookeeper
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_SYNC_LIMIT: 2
@@ -147,6 +250,12 @@ services:
       ZOO_LOG4J_ROOT_LOGLEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "2181:2181"
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep -q imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - smartstock-network
     labels:
@@ -155,12 +264,16 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: smartstock-kafka
+    restart: unless-stopped
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://kafka:9092
+      # PLAINTEXT (internal): services inside the Docker network connect via kafka:29092
+      # PLAINTEXT_HOST (external): host clients connect via localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -170,19 +283,20 @@ services:
       - "9092:9092"
       - "29092:29092"
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
     networks:
       - smartstock-network
     labels:
       service: messaging
 
-  # RabbitMQ - Alternative Message Broker
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: smartstock-rabbitmq
+    restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
@@ -202,14 +316,14 @@ services:
     labels:
       service: messaging
 
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   # OBJECT STORAGE
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
 
-  # MinIO - S3-compatible Object Storage
   minio:
     image: minio/minio:latest
     container_name: smartstock-minio
+    restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
@@ -229,18 +343,20 @@ services:
     labels:
       service: storage
 
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   # OBSERVABILITY: METRICS
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
 
-  # Prometheus - Metrics Collection & Storage (ADR-0009)
   prometheus:
     image: prom/prometheus:latest
     container_name: smartstock-prometheus
+    restart: unless-stopped
     environment:
       TZ: ${TZ:-UTC}
     volumes:
       - ./infrastructure/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - ./infrastructure/recording_rules.yml:/etc/prometheus/recording_rules.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
@@ -250,6 +366,7 @@ services:
       - "--storage.tsdb.retention.time=7d"
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-remote-write-receiver"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
       interval: 10s
@@ -259,22 +376,25 @@ services:
       - smartstock-network
     labels:
       service: observability
-    depends_on:
-      - postgres-identity
 
-  # Grafana - Dashboards & Visualization
   grafana:
     image: grafana/grafana:latest
     container_name: smartstock-grafana
+    restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
-      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      # grafana-piechart-panel was removed: it is built into Grafana 8+ core and
+      # installing it as a plugin generates a deprecation warning at startup.
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
       GF_LOG_LEVEL: ${LOG_LEVEL:-info}
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor tempoServiceGraph
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - grafana-data:/var/lib/grafana
       - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "3000:3000"
     healthcheck:
@@ -289,14 +409,14 @@ services:
     depends_on:
       - prometheus
 
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   # OBSERVABILITY: LOGGING
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
 
-  # Loki - Log Aggregation (ADR-0009)
   loki:
     image: grafana/loki:latest
     container_name: smartstock-loki
+    restart: unless-stopped
     environment:
       LOKI_LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -315,14 +435,14 @@ services:
     labels:
       service: observability
 
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   # OBSERVABILITY: TRACING
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
 
-  # Tempo - Distributed Tracing (ADR-0009)
   tempo:
     image: grafana/tempo:latest
     container_name: smartstock-tempo
+    restart: unless-stopped
     environment:
       TEMPO_LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -332,7 +452,7 @@ services:
       - "3200:3200"
       - "4317:4317"
       - "4318:4318"
-    command: [ "-config.file=/etc/tempo.yaml" ]
+    command: ["-config.file=/etc/tempo.yaml"]
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3200/status"]
       interval: 10s
@@ -343,14 +463,14 @@ services:
     labels:
       service: observability
 
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   # DATABASE ADMINISTRATION
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
 
-  # pgAdmin - PostgreSQL Administration UI
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: smartstock-pgadmin
+    restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@smartstock.dev}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
@@ -383,14 +503,14 @@ services:
       postgres-warehouse:
         condition: service_healthy
 
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   # EMAIL TESTING
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
 
-  # Mailpit - Email Testing & Debugging
   mailpit:
     image: axllent/mailpit:latest
     container_name: smartstock-mailpit
+    restart: unless-stopped
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
@@ -410,28 +530,46 @@ services:
     labels:
       service: email
 
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   # API GATEWAY
-  # ═════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
 
   api-gateway:
     build:
       context: .
       dockerfile: services/api-gateway/Dockerfile
     container_name: smartstock-api-gateway
+    restart: on-failure
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILE: prod
+      SPRING_PROFILES_ACTIVE: docker
       SERVER_PORT: 8080
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-smartstock123}
-      JWT_SECRET: ${JWT_SECRET:-SmartStockIdentityServiceSecretKeyForHS512JWTTokenSigningMustBe64BytesMinimumForSecurity2026}
-      IDENTITY_SERVICE_URL: http://identity-service:8001
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: api-gateway
+      # 100% sampling is intentional for local/dev — every request produces a trace.
+      # Production default: lower to 0.01–0.10 (1-10%) via this env var override.
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
       RATE_LIMIT_REPLENISH: ${RATE_LIMIT_REPLENISH:-100}
       RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-200}
+      # Downstream service URLs (circuit-broken routes)
+      IDENTITY_SERVICE_URL: http://identity-service:8001
+      PRODUCT_SERVICE_URL: http://product-service:8002
+      INVENTORY_SERVICE_URL: http://inventory-service:8003
+      WAREHOUSE_SERVICE_URL: http://warehouse-service:8004
+      SUPPLIER_SERVICE_URL: http://supplier-service:8005
+      CUSTOMER_SERVICE_URL: http://customer-service:8006
+      ORDER_SERVICE_URL: http://purchase-order-service:8007
+      AUDIT_SERVICE_URL: http://audit-service:8009
+      NOTIFICATION_SERVICE_URL: http://notification-service:8010
+      REPORTING_SERVICE_URL: http://reporting-service:8011
+      DATA_EXPORT_SERVICE_URL: http://data-export-service:8013
+      ANALYTICS_SERVICE_URL: http://analytics-service:8012
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -446,6 +584,322 @@ services:
     labels:
       service: gateway
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # APPLICATION SERVICES
+  #
+  # Build requires pre-built JARs:
+  #   mvn -f services/pom.xml clean package -DskipTests
+  #   docker compose up -d --build
+  #
+  # Each service waits for its database AND Kafka to be healthy before starting.
+  # The `docker` Spring profile is activated so application-docker.yml overrides
+  # pick up container-network defaults (postgres-<name>:5432, kafka:29092).
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: services/identity-service/Dockerfile
+    container_name: smartstock-identity-service
+    restart: on-failure
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8001
+      DB_HOST: postgres-identity
+      DB_PORT: 5432
+      DB_NAME: smartstock_identity
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: identity-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8001/api/v1/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+    depends_on:
+      postgres-identity:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  product-service:
+    build:
+      context: .
+      dockerfile: services/product-service/Dockerfile
+    container_name: smartstock-product-service
+    restart: on-failure
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8002
+      DB_HOST: postgres-product
+      DB_PORT: 5432
+      DB_NAME: smartstock_product
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: product-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8002/api/v1/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+    depends_on:
+      postgres-product:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: services/inventory-service/Dockerfile
+    container_name: smartstock-inventory-service
+    restart: on-failure
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8003
+      DB_HOST: postgres-inventory
+      DB_PORT: 5432
+      DB_NAME: smartstock_inventory
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: inventory-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
+    ports:
+      - "8003:8003"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8003/api/v1/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+    depends_on:
+      postgres-inventory:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  warehouse-service:
+    build:
+      context: .
+      dockerfile: services/warehouse-service/Dockerfile
+    container_name: smartstock-warehouse-service
+    restart: on-failure
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8004
+      DB_HOST: postgres-warehouse
+      DB_PORT: 5432
+      DB_NAME: smartstock_warehouse
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: warehouse-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
+    ports:
+      - "8004:8004"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8004/api/v1/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+    depends_on:
+      postgres-warehouse:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  supplier-service:
+    build:
+      context: .
+      dockerfile: services/supplier-service/Dockerfile
+    container_name: smartstock-supplier-service
+    restart: on-failure
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8005
+      DB_HOST: postgres-supplier
+      DB_PORT: 5432
+      DB_NAME: smartstock_supplier
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: supplier-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
+    ports:
+      - "8005:8005"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8005/api/v1/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+    depends_on:
+      postgres-supplier:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  customer-service:
+    build:
+      context: .
+      dockerfile: services/customer-service/Dockerfile
+    container_name: smartstock-customer-service
+    restart: on-failure
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8006
+      DB_HOST: postgres-customer
+      DB_PORT: 5432
+      DB_NAME: smartstock_customer
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: customer-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
+    ports:
+      - "8006:8006"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8006/api/v1/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+    depends_on:
+      postgres-customer:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  purchase-order-service:
+    build:
+      context: .
+      dockerfile: services/purchase-order-service/Dockerfile
+    container_name: smartstock-purchase-order-service
+    restart: on-failure
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8007
+      DB_HOST: postgres-purchase-order
+      DB_PORT: 5432
+      DB_NAME: smartstock_purchase_order
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: purchase-order-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
+    ports:
+      - "8007:8007"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8007/api/v1/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+    depends_on:
+      postgres-purchase-order:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
+  sales-order-service:
+    build:
+      context: .
+      dockerfile: services/sales-order-service/Dockerfile
+    container_name: smartstock-sales-order-service
+    restart: on-failure
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8008
+      DB_HOST: postgres-sales-order
+      DB_PORT: 5432
+      DB_NAME: smartstock_sales_order
+      DB_USER: ${DB_USER:-smartstock}
+      DB_PASSWORD: ${DB_PASSWORD:-smartstock123}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (min 64 chars, see .env.example)}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
+      OTEL_SERVICE_NAME: sales-order-service
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      LOKI_URL: http://loki:3100
+    ports:
+      - "8008:8008"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8008/api/v1/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 5
+    depends_on:
+      postgres-sales-order:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartstock-network
+    labels:
+      service: app
+
 networks:
   smartstock-network:
     driver: bridge
@@ -459,6 +913,14 @@ volumes:
   postgres-inventory-data:
     driver: local
   postgres-warehouse-data:
+    driver: local
+  postgres-supplier-data:
+    driver: local
+  postgres-customer-data:
+    driver: local
+  postgres-purchase-order-data:
+    driver: local
+  postgres-sales-order-data:
     driver: local
 
   # Caching

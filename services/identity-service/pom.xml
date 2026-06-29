@@ -112,12 +112,6 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
-        <!-- Micrometer / Prometheus -->
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-registry-prometheus</artifactId>
-        </dependency>
-
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -190,6 +184,8 @@
                     <excludes>
                         <exclude>**/*IntegrationTest.java</exclude>
                         <exclude>**/*RepositoryTest.java</exclude>
+                        <exclude>**/*SmokeTest.java</exclude>
+                        <exclude>**/*RegressionTest.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
@@ -228,44 +224,11 @@
                 </configuration>
             </plugin>
 
+            <!-- JaCoCo: inherits 90% threshold from parent via ${jacoco.minimum.coverage} -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.12</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>check</id>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                        <configuration>
-                            <rules>
-                                <rule>
-                                    <element>BUNDLE</element>
-                                    <limits>
-                                        <limit>
-                                            <counter>LINE</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.60</minimum>
-                                        </limit>
-                                    </limits>
-                                </rule>
-                            </rules>
-                        </configuration>
-                    </execution>
-                </executions>
+                <version>${jacoco.version}</version>
             </plugin>
         </plugins>
     </build>

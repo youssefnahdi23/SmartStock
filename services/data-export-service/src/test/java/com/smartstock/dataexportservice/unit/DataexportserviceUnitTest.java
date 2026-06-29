@@ -1,4 +1,4 @@
-package com.smartstock.dataExportService.unit;
+package com.smartstock.dataexportservice.unit;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

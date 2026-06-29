@@ -107,7 +107,7 @@ database:
 
 # ✗ BAD: Hardcoded secrets
 database:
-  password: "hardcoded-secret-123"
+  password: "<SECRET>"
 ```
 
 ## Dependencies & Third-Party Libraries

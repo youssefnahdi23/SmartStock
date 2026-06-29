@@ -1,7 +1,16 @@
 spring:
   application:
     name: supplier-service
-  
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:smartstock_supplier}
+    username: ${DB_USER:smartstock}
+    password: ${DB_PASSWORD:smartstock}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -12,39 +21,29 @@ spring:
         jdbc:
           batch_size: 20
           fetch_size: 50
-  
-  datasource:
-    url: jdbc:postgresql://localhost:5432/supplierservice
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
-    driver-class-name: org.postgresql.Driver
-  
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
     consumer:
-      bootstrap-servers: localhost:9092
-      group-id: supplierservice-group
+      group-id: supplier-service-group
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
-  
-  flyway:
-    enabled: true
-    baseline-on-migrate: true
-    locations: classpath:db/migration
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: http://localhost:8080/auth/realms/smartstock
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:8005}
   servlet:
     context-path: /api/v1
 
@@ -52,21 +51,47 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,loggers
+      base-path: /actuator
   endpoint:
     health:
       show-details: always
+  tracing:
+    sampling:
+      probability: 1.0
   metrics:
     export:
       prometheus:
         enabled: true
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:<JWT_SECRET>}
+    expiration-ms: 86400000
 
 logging:
   level:
     root: INFO
     com.smartstock: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
     name: logs/supplier-service.log
+
+# Transactional outbox relay (debt C-2): this service produces domain events.
+smartstock:
+  outbox:
+    enabled: true
+    poll-interval-ms: 2000
+    batch-size: 100
+  consumer:
+    enabled: true
+  security:
+    enabled: true

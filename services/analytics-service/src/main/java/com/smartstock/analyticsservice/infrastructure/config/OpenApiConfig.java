@@ -1,4 +1,4 @@
-package com.smartstock.analyticsService.infrastructure.config;
+package com.smartstock.analyticsservice.infrastructure.config;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;

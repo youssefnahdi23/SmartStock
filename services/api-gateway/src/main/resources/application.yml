@@ -289,7 +289,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics,gateway
+        include: health,info,prometheus,metrics,gateway,loggers
       base-path: /actuator
   endpoint:
     health:
@@ -409,6 +409,6 @@ springdoc:
 # ─── Application ─────────────────────────────────────────────────────────────
 app:
   jwt:
-    secret: ${JWT_SECRET:SmartStockIdentityServiceSecretKeyForHS512JWTTokenSigningMustBe64BytesMinimumForSecurity2026}
+    secret: ${JWT_SECRET:<JWT_SECRET>}
     issuer: smartstock-auth
     audience: smartstock-api

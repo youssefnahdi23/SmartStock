@@ -28,12 +28,15 @@
         <module>customer-service</module>
         <module>audit-service</module>
         <module>order-service</module>
+        <module>purchase-order-service</module>
+        <module>sales-order-service</module>
         <module>notification-service</module>
         <module>reporting-service</module>
         <module>data-export-service</module>
         <module>analytics-service</module>
         <module>common</module>
         <module>api-gateway</module>
+        <module>load-tests</module>
     </modules>
 
     <properties>
@@ -64,10 +67,22 @@
         <junit-jupiter.version>5.10.2</junit-jupiter.version>
         <mockito.version>5.8.0</mockito.version>
         <testcontainers.version>1.20.4</testcontainers.version>
+        <wiremock.version>3.4.2</wiremock.version>
+        <rest-assured.version>5.4.0</rest-assured.version>
+        <awaitility.version>4.2.1</awaitility.version>
+        <jacoco.version>0.8.12</jacoco.version>
+        <!-- Ratcheting line-coverage floor. Current real-module baseline (unit suite) is ~21%
+             (warehouse) up to ~91% (api-gateway). Set just under the current minimum so CI is
+             green and honest; ratchet UP (0.20 → 0.30 → 0.45 → … → 0.90 target) as the
+             Docker-backed integration suite and new unit tests land. Branch gate intentionally
+             omitted for now (branch coverage is still single-digit on most modules). -->
+        <jacoco.minimum.coverage>0.20</jacoco.minimum.coverage>
         
         <!-- Observability -->
         <opentelemetry.version>1.39.0</opentelemetry.version>
         <micrometer.version>1.13.1</micrometer.version>
+        <micrometer-tracing.version>1.3.1</micrometer-tracing.version>
+        <loki4j.version>1.5.2</loki4j.version>
         
         <!-- JSON Processing -->
         <jackson.version>2.17.1</jackson.version>
@@ -104,6 +119,36 @@
                 <version>${testcontainers.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- WireMock -->
+            <dependency>
+                <groupId>org.wiremock</groupId>
+                <artifactId>wiremock-standalone</artifactId>
+                <version>${wiremock.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- REST Assured -->
+            <dependency>
+                <groupId>io.rest-assured</groupId>
+                <artifactId>rest-assured</artifactId>
+                <version>${rest-assured.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.rest-assured</groupId>
+                <artifactId>spring-mock-mvc</artifactId>
+                <version>${rest-assured.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- Awaitility -->
+            <dependency>
+                <groupId>org.awaitility</groupId>
+                <artifactId>awaitility</artifactId>
+                <version>${awaitility.version}</version>
+                <scope>test</scope>
             </dependency>
 
             <!-- JWT -->
@@ -170,10 +215,18 @@
                 <artifactId>micrometer-core</artifactId>
                 <version>${micrometer.version}</version>
             </dependency>
+            <!-- micrometer-tracing uses its own version scheme (1.3.x), separate from micrometer-core (1.13.x) -->
             <dependency>
                 <groupId>io.micrometer</groupId>
                 <artifactId>micrometer-tracing-bridge-otel</artifactId>
-                <version>${micrometer.version}</version>
+                <version>${micrometer-tracing.version}</version>
+            </dependency>
+
+            <!-- Loki log shipper for Logback -->
+            <dependency>
+                <groupId>com.github.loki4j</groupId>
+                <artifactId>loki-logback-appender</artifactId>
+                <version>${loki4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -203,6 +256,30 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Observability: Prometheus metrics export -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- Observability: Distributed tracing via Micrometer → OpenTelemetry bridge -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
+        <!-- Observability: OTLP exporter — sends spans to Tempo via OTEL_EXPORTER_OTLP_ENDPOINT -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+
+        <!-- Observability: Loki log shipping via Logback appender -->
+        <dependency>
+            <groupId>com.github.loki4j</groupId>
+            <artifactId>loki-logback-appender</artifactId>
         </dependency>
 
         <!-- OpenAPI/Swagger -->
@@ -250,6 +327,36 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>spring-mock-mvc</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -292,7 +399,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>${jacoco.version}</version>
                 <executions>
                     <execution>
                         <goals>
@@ -306,10 +413,74 @@
                             <goal>report</goal>
                         </goals>
                     </execution>
+                    <execution>
+                        <id>check</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.minimum.coverage}</minimum>
+                                        </limit>
+                                    </limits>
+                                    <excludes>
+                                        <!-- Exclude generated/config/infra from line-level gate -->
+                                        <exclude>**/*Application.class</exclude>
+                                        <exclude>**/config/**</exclude>
+                                        <exclude>**/exception/**</exclude>
+                                        <exclude>**/domain/model/**</exclude>
+                                        <exclude>**/api/dto/**</exclude>
+                                        <exclude>**/infrastructure/outbox/**</exclude>
+                                    </excludes>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Integration tests (debt H-7): run the Testcontainers suites that the default
+             `mvn test` excludes. Uses failsafe (verify phase) so it is independent of each
+             service's surefire excludes — no include/exclude precedence ambiguity, and no
+             double-running with the unit suite. Requires a Docker host (Testcontainers);
+             wired into the dedicated CI job. Usage: `mvn verify -Pintegration-test`. -->
+        <profile>
+            <id>integration-test</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                                <configuration>
+                                    <includes>
+                                        <include>**/*IntegrationTest.java</include>
+                                        <include>**/*RepositoryTest.java</include>
+                                        <include>**/*SmokeTest.java</include>
+                                        <include>**/*RegressionTest.java</include>
+                                    </includes>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <repositories>
         <repository>

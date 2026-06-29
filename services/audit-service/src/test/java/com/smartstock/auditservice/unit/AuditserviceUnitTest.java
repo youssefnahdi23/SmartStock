@@ -1,4 +1,4 @@
-package com.smartstock.auditService.unit;
+package com.smartstock.auditservice.unit;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

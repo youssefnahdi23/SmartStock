@@ -1,0 +1,87 @@
+groups:
+  # ── HTTP Request Metrics ────────────────────────────────────────────────────
+  # Pre-computed to avoid repeated heavy histogram_quantile queries in dashboards.
+  - name: http_request_metrics
+    interval: 15s
+    rules:
+      - record: job:http_requests_total:rate5m
+        expr: sum(rate(http_server_requests_seconds_count[5m])) by (job)
+
+      - record: job:http_errors_total:rate5m
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) by (job)
+
+      - record: job:http_client_errors_total:rate5m
+        expr: sum(rate(http_server_requests_seconds_count{status=~"4.."}[5m])) by (job)
+
+      - record: job:http_error_ratio:rate5m
+        expr: |
+          job:http_errors_total:rate5m
+          / on(job) job:http_requests_total:rate5m
+
+      - record: job:http_duration_p50:rate5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (job, le)
+          )
+
+      - record: job:http_duration_p95:rate5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (job, le)
+          )
+
+      - record: job:http_duration_p99:rate5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (job, le)
+          )
+
+  # ── Per-endpoint breakdown ──────────────────────────────────────────────────
+  - name: http_endpoint_metrics
+    interval: 30s
+    rules:
+      - record: job_uri:http_requests_total:rate5m
+        expr: |
+          sum(rate(http_server_requests_seconds_count[5m])) by (job, uri, method, status)
+
+      - record: job_uri:http_duration_p95:rate5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (job, uri, method, le)
+          )
+
+  # ── JVM Aggregates ──────────────────────────────────────────────────────────
+  - name: jvm_aggregates
+    interval: 30s
+    rules:
+      - record: job:jvm_heap_utilisation
+        expr: |
+          jvm_memory_used_bytes{area="heap"}
+          / jvm_memory_max_bytes{area="heap"}
+
+      - record: job:jvm_nonheap_utilisation
+        expr: |
+          jvm_memory_used_bytes{area="nonheap"}
+          / jvm_memory_committed_bytes{area="nonheap"}
+
+      - record: job:jvm_gc_rate:rate5m
+        expr: sum(rate(jvm_gc_pause_seconds_count[5m])) by (job, cause)
+
+  # ── Database Connection Pool ────────────────────────────────────────────────
+  - name: db_aggregates
+    interval: 30s
+    rules:
+      - record: job:hikaricp_pool_utilisation
+        expr: |
+          hikaricp_connections_active
+          / hikaricp_connections_max
+
+      - record: job:hikaricp_pending_threads
+        expr: hikaricp_connections_pending
+
+  # ── Service Availability ────────────────────────────────────────────────────
+  - name: availability
+    interval: 30s
+    rules:
+      - record: job:service_availability:avg5m
+        expr: avg_over_time(up[5m])

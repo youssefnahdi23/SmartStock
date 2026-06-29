@@ -1,4 +1,4 @@
-package com.smartstock.reportingService.infrastructure.config;
+package com.smartstock.reportingservice.infrastructure.config;
 
 import org.springframework.context.annotation.Configuration;
 

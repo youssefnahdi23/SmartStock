@@ -1,4 +1,4 @@
-package com.smartstock.dataExportService.infrastructure.config;
+package com.smartstock.dataexportservice.infrastructure.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -1,5 +1,11 @@
 # Prometheus Configuration
-# Metrics collection for SmartStock microservices
+# Metrics collection for SmartStock microservices (ADR-0009)
+#
+# NOTE on metrics paths:
+#   Business services set `server.servlet.context-path: /api/v1`, so their
+#   actuator endpoints are served under /api/v1/actuator/* (NOT /actuator/*).
+#   The api-gateway (reactive, no context-path) serves actuator at /actuator/*.
+#   Ports follow the canonical 800x allocation (identity 8001 .. order 8014).
 
 global:
   scrape_interval: 15s
@@ -8,16 +14,16 @@ global:
     monitor: 'smartstock-monitor'
     environment: 'development'
 
-# Alertmanager configuration
+# Alertmanager configuration (no alertmanager in dev — alerts fire in Prometheus UI only)
 alerting:
   alertmanagers:
     - static_configs:
         - targets: []
 
-# Load rules once and periodically evaluate them
+# Alert + recording rules
 rule_files:
-  # - "alert_rules.yml"
-  # - "recording_rules.yml"
+  - "alert_rules.yml"
+  - "recording_rules.yml"
 
 # Scrape configurations
 scrape_configs:
@@ -26,46 +32,142 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # Services with Prometheus metrics (will be added as services are deployed)
-  - job_name: 'identity-service'
+  # Tempo metrics generator (service graphs + span RED metrics)
+  - job_name: 'tempo'
     static_configs:
-      - targets: ['identity-service:8081']
+      - targets: ['tempo:3200']
+    metrics_path: '/metrics'
+
+  # ── API Gateway (reactive, actuator at /actuator) ──────────────────────────
+  - job_name: 'api-gateway'
     metrics_path: '/actuator/prometheus'
-    scrape_interval: 30s
-    scrape_timeout: 10s
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: instance
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['api-gateway:8080']
+        labels:
+          service_layer: gateway
+
+  # ── Implemented business services (context-path /api/v1) ───────────────────
+  - job_name: 'identity-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['identity-service:8001']
+        labels:
+          service_layer: core
 
   - job_name: 'product-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 15s
     static_configs:
-      - targets: ['product-service:8082']
-    metrics_path: '/actuator/prometheus'
-    scrape_interval: 30s
+      - targets: ['product-service:8002']
+        labels:
+          service_layer: core
 
   - job_name: 'inventory-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 15s
     static_configs:
-      - targets: ['inventory-service:8083']
-    metrics_path: '/actuator/prometheus'
-    scrape_interval: 30s
+      - targets: ['inventory-service:8003']
+        labels:
+          service_layer: core
 
   - job_name: 'warehouse-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 15s
     static_configs:
-      - targets: ['warehouse-service:8084']
-    metrics_path: '/actuator/prometheus'
-    scrape_interval: 30s
+      - targets: ['warehouse-service:8004']
+        labels:
+          service_layer: core
 
-  # PostgreSQL databases (via postgres_exporter, optional)
-  # - job_name: 'postgres-identity'
+  - job_name: 'supplier-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['supplier-service:8005']
+        labels:
+          service_layer: core
+
+  - job_name: 'customer-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['customer-service:8006']
+        labels:
+          service_layer: core
+
+  - job_name: 'purchase-order-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['purchase-order-service:8007']
+        labels:
+          service_layer: core
+
+  - job_name: 'sales-order-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['sales-order-service:8008']
+        labels:
+          service_layer: core
+
+  # ── Skeleton services (not yet feature-complete; metrics exposed) ──────────
+  - job_name: 'audit-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['audit-service:8009']
+        labels:
+          service_layer: support
+
+  - job_name: 'notification-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['notification-service:8010']
+        labels:
+          service_layer: support
+
+  - job_name: 'reporting-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['reporting-service:8011']
+        labels:
+          service_layer: support
+
+  - job_name: 'analytics-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['analytics-service:8012']
+        labels:
+          service_layer: support
+
+  - job_name: 'data-export-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['data-export-service:8013']
+        labels:
+          service_layer: support
+
+  - job_name: 'order-service'
+    metrics_path: '/api/v1/actuator/prometheus'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['order-service:8014']
+        labels:
+          service_layer: support
+
+  # ── Optional infrastructure exporters (enable when deployed) ───────────────
+  # - job_name: 'postgres'
   #   static_configs:
   #     - targets: ['postgres-exporter:9187']
-
-  # Redis (via redis_exporter, optional)
   # - job_name: 'redis'
   #   static_configs:
   #     - targets: ['redis-exporter:9121']
-
-  # Kafka (via jmx_exporter, optional)
   # - job_name: 'kafka'
   #   static_configs:
-  #     - targets: ['kafka-exporter:9090']
+  #     - targets: ['kafka-exporter:9308']

@@ -47,11 +47,8 @@ spring:
       retries: 3
       properties:
         spring.json.add.type.headers: false
-    consumer:
-      group-id: identity-service
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+    # identity-service is a pure producer — it has no @KafkaListener and
+    # smartstock.consumer.enabled is not set, so no consumer config is needed.
 
   jackson:
     serialization:
@@ -74,13 +71,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus,metrics,flyway
+        include: health,info,prometheus,metrics,flyway,loggers
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
   metrics:
     export:
       prometheus:
@@ -115,7 +115,7 @@ springdoc:
 app:
   jwt:
     # HS512 secret - min 512 bits. Override via JWT_SECRET env var in production.
-    secret: ${JWT_SECRET:SmartStockIdentityServiceSecretKeyForHS512JWTTokenSigningMustBe64BytesMinimumForSecurity2026}
+    secret: ${JWT_SECRET:<JWT_SECRET>}
     # Access token TTL: 1 hour (3600000ms) per ADR-0005
     access-token-expiration-ms: ${JWT_ACCESS_TTL:3600000}
     # Refresh token TTL: 30 days (2592000000ms) per API spec
@@ -142,5 +142,10 @@ app:
 
   kafka:
     topics:
-      user-events: identity.user.events
-      auth-events: identity.auth.events
+      events: identity.events
+
+smartstock:
+  outbox:
+    enabled: true
+    poll-interval-ms: 2000
+    batch-size: 100

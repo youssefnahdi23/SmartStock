@@ -10,6 +10,9 @@ import com.smartstock.identity.domain.model.Role;
 import com.smartstock.identity.domain.model.User;
 import com.smartstock.identity.domain.repository.RoleRepository;
 import com.smartstock.identity.domain.repository.UserRepository;
+import com.smartstock.identity.domain.event.PasswordChangedEvent;
+import com.smartstock.identity.domain.event.UserCreatedEvent;
+import com.smartstock.identity.domain.event.UserDeactivatedEvent;
 import com.smartstock.identity.exception.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +36,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final IdentityEventPublisher eventPublisher;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -60,6 +64,9 @@ public class UserService {
 
         User saved = userRepository.save(user);
         log.info("User registered: id={}, username={}", saved.getId(), saved.getUsername());
+        eventPublisher.publishUserCreated(new UserCreatedEvent(
+                saved.getId(), saved.getUsername(), saved.getEmail(),
+                saved.getFirstName(), saved.getLastName(), "identity-service"));
         return toResponse(saved);
     }
 
@@ -115,6 +122,8 @@ public class UserService {
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         user.setPasswordChangedAt(LocalDateTime.now());
         userRepository.save(user);
+        eventPublisher.publishPasswordChanged(new PasswordChangedEvent(
+                userId, user.getUsername(), "identity-service"));
         log.info("Password changed for userId={}", userId);
     }
 
@@ -123,7 +132,10 @@ public class UserService {
         User user = userRepository.findByIdAndNotDeleted(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
         user.setActive(false);
-        return toResponse(userRepository.save(user));
+        User saved = userRepository.save(user);
+        eventPublisher.publishUserDeactivated(new UserDeactivatedEvent(
+                id, saved.getUsername(), "system", "identity-service"));
+        return toResponse(saved);
     }
 
     @Transactional

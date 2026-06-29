@@ -22,6 +22,15 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- Spring Kafka — used by the shared transactional outbox relay (C-2).
+             Optional so it is not forced onto consumers of `common` that do not message;
+             every producer service already declares spring-kafka itself. -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>

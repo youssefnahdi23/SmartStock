@@ -1,0 +1,365 @@
+{
+  "title": "SmartStock — JVM Metrics",
+  "uid": "smartstock-jvm",
+  "description": "JVM heap, GC, threads, CPU, and HikariCP connection pool per service.",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "tags": ["smartstock", "jvm"],
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "annotations": { "list": [] },
+  "links": [],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+        "query": "label_values(jvm_memory_used_bytes, job)",
+        "sort": 1,
+        "multi": false,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {},
+        "refresh": 2,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Memory",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Heap Utilisation",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * jvm_memory_used_bytes{job=~\"$service\", area=\"heap\"} / jvm_memory_max_bytes{job=~\"$service\", area=\"heap\"}",
+          "instant": true,
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "minVizWidth": 75
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 70, "color": "yellow" },
+              { "value": 85, "color": "red" }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Heap Memory Used / Max",
+      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "jvm_memory_used_bytes{job=~\"$service\", area=\"heap\"}",
+          "legendFormat": "{{job}} — used"
+        },
+        {
+          "refId": "B",
+          "expr": "jvm_memory_max_bytes{job=~\"$service\", area=\"heap\"}",
+          "legendFormat": "{{job}} — max"
+        }
+      ],
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byNamePattern", "options": ".*max" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Non-Heap Memory Used",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "jvm_memory_used_bytes{job=~\"$service\", area=\"nonheap\"}",
+          "legendFormat": "{{job}} — {{id}}"
+        }
+      ],
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Buffer Pool Memory",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "jvm_buffer_memory_used_bytes{job=~\"$service\"}",
+          "legendFormat": "{{job}} — {{id}}"
+        }
+      ],
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Garbage Collection",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "GC Collections / second",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(jvm_gc_pause_seconds_count{job=~\"$service\"}[5m])) by (job, cause)",
+          "legendFormat": "{{job}} — {{cause}}"
+        }
+      ],
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "GC Pause Duration (average)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(jvm_gc_pause_seconds_sum{job=~\"$service\"}[5m]) / rate(jvm_gc_pause_seconds_count{job=~\"$service\"}[5m])",
+          "legendFormat": "{{job}} — {{cause}}"
+        }
+      ],
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 0.1, "color": "yellow" },
+              { "value": 0.5, "color": "red" }
+            ]
+          },
+          "custom": { "lineWidth": 2 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Threads & CPU",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "JVM Threads",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "jvm_threads_live_threads{job=~\"$service\"}",
+          "legendFormat": "{{job}} — live"
+        },
+        {
+          "refId": "B",
+          "expr": "jvm_threads_daemon_threads{job=~\"$service\"}",
+          "legendFormat": "{{job}} — daemon"
+        },
+        {
+          "refId": "C",
+          "expr": "jvm_threads_peak_threads{job=~\"$service\"}",
+          "legendFormat": "{{job}} — peak"
+        }
+      ],
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "CPU Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "process_cpu_usage{job=~\"$service\"} * 100",
+          "legendFormat": "{{job}} — process"
+        },
+        {
+          "refId": "B",
+          "expr": "system_cpu_usage{job=~\"$service\"} * 100",
+          "legendFormat": "{{job}} — system"
+        }
+      ],
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Database — HikariCP Connection Pool",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Connection Pool State",
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "hikaricp_connections_active{job=~\"$service\"}",
+          "legendFormat": "{{job}} — active"
+        },
+        {
+          "refId": "B",
+          "expr": "hikaricp_connections_idle{job=~\"$service\"}",
+          "legendFormat": "{{job}} — idle"
+        },
+        {
+          "refId": "C",
+          "expr": "hikaricp_connections_pending{job=~\"$service\"}",
+          "legendFormat": "{{job}} — pending"
+        },
+        {
+          "refId": "D",
+          "expr": "hikaricp_connections_max{job=~\"$service\"}",
+          "legendFormat": "{{job}} — max"
+        }
+      ],
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byNamePattern", "options": ".*max" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "Connection Acquisition Time (p95)",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus-ds" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(hikaricp_connections_creation_seconds_bucket{job=~\"$service\"}[5m])) by (job, le))",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2 }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

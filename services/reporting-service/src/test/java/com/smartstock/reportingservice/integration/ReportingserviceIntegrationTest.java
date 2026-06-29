@@ -1,4 +1,4 @@
-package com.smartstock.reportingService.integration;
+package com.smartstock.reportingservice.integration;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

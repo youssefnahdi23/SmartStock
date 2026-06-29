@@ -1,22 +1,28 @@
-# Tempo Configuration
-# Distributed tracing for SmartStock microservices
-
-# Use environment var LOG_LEVEL to control logging
-# Defaults to info if not set
+# Tempo Configuration — distributed tracing with metrics generation
+# Receives OTLP spans from all SmartStock services and generates
+# service-graph and span-metrics for Prometheus.
 
 server:
   http_listen_port: 3200
   log_level: ${TEMPO_LOG_LEVEL:-info}
 
 distributor:
-  rate_limit_bytes: 0
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
 
 ingester:
   max_block_duration: 5m
 
 compactor:
   compaction:
-    compacted_block_retention: 10m
+    # 1h was too aggressive — traces vanish before a debugging session ends.
+    # 24h suits a local dev cycle; production default is 14d+.
+    compacted_block_retention: 24h
 
 storage:
   trace:
@@ -26,16 +32,28 @@ storage:
     wal:
       path: /var/tempo/wal
 
-# Receivers for different protocols
-receivers:
-  otlp:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
-      http:
-        endpoint: 0.0.0.0:4318
+# Generates Prometheus metrics (service graphs, span RED metrics) from traces.
+# Requires Prometheus to have --web.enable-remote-write-receiver.
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  # Note: top-level `processors:` list was removed — it is deprecated in Tempo 2.x
+  # and caused a config validation warning. Processors are now enabled exclusively
+  # via overrides.defaults.metrics_generator.processors (tenant-level config).
+  processor:
+    service_graphs:
+      dimensions: [http.method, http.status_code]
+    span_metrics:
+      dimensions: [http.method, http.status_code, http.route]
 
-# Exporters for metrics and logs (optional)
-exporters:
-  prometheus:
-    endpoint: 0.0.0.0:8888
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]

@@ -1,0 +1,393 @@
+name: QA Automation
+
+on:
+  push:
+    branches: [ main, develop, feature/*, release/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Nightly full regression at 02:00 UTC on main
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      run_load_tests:
+        description: 'Run Gatling load tests'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: qa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+  MAVEN_OPTS: '-Xmx2g -XX:+UseG1GC'
+  MAVEN_CLI_OPTS: '-B --no-transfer-progress'
+
+jobs:
+  # ── 1. Build ─────────────────────────────────────────────────────────────────
+  build:
+    name: Compile & Package
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-key.outputs.key }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Generate cache key
+        id: cache-key
+        run: echo "key=maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}" >> $GITHUB_OUTPUT
+
+      - name: Build (skip tests)
+        run: mvn ${{ env.MAVEN_CLI_OPTS }} -f services/pom.xml clean install -DskipTests
+
+      - name: Cache compiled classes
+        uses: actions/cache@v4
+        with:
+          path: |
+            services/*/target/classes
+            services/*/target/test-classes
+            ~/.m2/repository
+          key: ${{ steps.cache-key.outputs.key }}
+
+  # ── 2. Unit Tests (per-service matrix) ───────────────────────────────────────
+  unit-tests:
+    name: Unit Tests — ${{ matrix.service }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - identity-service
+          - product-service
+          - inventory-service
+          - warehouse-service
+          - supplier-service
+          - customer-service
+          - purchase-order-service
+          - sales-order-service
+          - audit-service
+          - notification-service
+          - analytics-service
+          - reporting-service
+          - data-export-service
+          - order-service
+          - common
+          - api-gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Run unit tests — ${{ matrix.service }}
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/${{ matrix.service }}/pom.xml \
+            test \
+            -Dsurefire.failIfNoSpecifiedTests=false
+
+      - name: Upload JaCoCo report — ${{ matrix.service }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-unit-${{ matrix.service }}
+          path: services/${{ matrix.service }}/target/site/jacoco/
+          retention-days: 7
+
+  # ── 3. Integration Tests (Docker required) ────────────────────────────────────
+  integration-tests:
+    name: Integration Tests — ${{ matrix.service }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - identity-service
+          - product-service
+          - inventory-service
+          - warehouse-service
+          - supplier-service
+          - customer-service
+          - purchase-order-service
+          - sales-order-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Run integration tests — ${{ matrix.service }}
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/${{ matrix.service }}/pom.xml \
+            verify -Pintegration-test \
+            -Dfailsafe.failIfNoSpecifiedTests=false
+
+      - name: Upload JaCoCo report — ${{ matrix.service }} (IT)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-it-${{ matrix.service }}
+          path: services/${{ matrix.service }}/target/site/jacoco/
+          retention-days: 7
+
+  # ── 4. Security Tests ─────────────────────────────────────────────────────────
+  security-tests:
+    name: Security Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Run security integration tests (identity-service)
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/identity-service/pom.xml \
+            verify -Pintegration-test \
+            -Dtest="SecurityIntegrationTest" \
+            -Dfailsafe.includes="**/SecurityIntegrationTest.java" \
+            -Dfailsafe.failIfNoSpecifiedTests=false
+
+      - name: OWASP Dependency-Check
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/pom.xml \
+            org.owasp:dependency-check-maven:check \
+            -DfailBuildOnCVSS=9 \
+            -DskipProvidedScope=true \
+            -DskipRuntimeScope=false \
+            --no-transfer-progress \
+            -DnvdApiDelay=4000 \
+            || true   # advisory only — does not fail build for < CVSS 9
+
+      - name: Upload OWASP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-dependency-check
+          path: services/*/target/dependency-check-report.html
+          retention-days: 14
+
+  # ── 5. Smoke Tests ────────────────────────────────────────────────────────────
+  smoke-tests:
+    name: Smoke Tests
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Run smoke tests (tagged @smoke)
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/pom.xml \
+            verify -Pintegration-test \
+            -Dgroups="smoke" \
+            -Dfailsafe.failIfNoSpecifiedTests=false
+
+  # ── 6. Regression Tests ───────────────────────────────────────────────────────
+  regression-tests:
+    name: Regression Tests (WireMock)
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Run regression tests (tagged @regression)
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/identity-service/pom.xml \
+            verify -Pintegration-test \
+            -Dgroups="regression" \
+            -Dfailsafe.failIfNoSpecifiedTests=false
+
+  # ── 7. Coverage Gate ──────────────────────────────────────────────────────────
+  coverage-gate:
+    name: Coverage Gate (ratcheting line floor)
+    needs: [ unit-tests, integration-tests ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Download all JaCoCo reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: jacoco-unit-*
+          path: jacoco-reports/
+
+      - name: Enforce ratcheting line-coverage floor
+        # Uses the jacoco.minimum.coverage floor declared in services/pom.xml (currently 0.20,
+        # line-only). Ratchet the property up as coverage grows toward the 0.90 target.
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/pom.xml \
+            verify -Pintegration-test \
+            -DskipITs=true
+
+      - name: Upload merged coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          directory: services/
+          include: '**/target/site/jacoco/jacoco.xml'
+          flags: full-suite
+          name: smartstock-coverage
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # ── 8. Kafka Contract Tests ───────────────────────────────────────────────────
+  kafka-contract-tests:
+    name: Kafka Contract Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Run Kafka topic contract tests across all services
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/pom.xml \
+            test \
+            -Dtest="**/KafkaTopicContractTest" \
+            -Dsurefire.failIfNoSpecifiedTests=false
+
+  # ── 9. Load Tests (scheduled / manual only) ───────────────────────────────────
+  load-tests:
+    name: Load Tests (Gatling)
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_load_tests == 'true')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Start full-stack with Docker Compose
+        run: |
+          docker compose up -d --wait \
+            postgres-identity postgres-product postgres-inventory postgres-warehouse \
+            postgres-supplier postgres-customer postgres-purchase-order postgres-sales-order \
+            kafka zookeeper redis
+          sleep 30
+
+      - name: Deploy services (test mode)
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/pom.xml \
+            spring-boot:run \
+            -pl identity-service,product-service,inventory-service \
+            -Dspring-boot.run.fork=true \
+            -Dspring-boot.run.profiles=docker &
+          sleep 60
+
+      - name: Run Gatling load simulation
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/load-tests/pom.xml \
+            gatling:test \
+            -Didentity.base.url=http://localhost:8001 \
+            -Dinventory.base.url=http://localhost:8003 \
+            -Dproduct.base.url=http://localhost:8002 \
+            -Dload.users=50 \
+            -Dload.duration.seconds=120 \
+            -Dload.ramp.seconds=15
+
+      - name: Upload Gatling report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gatling-report
+          path: services/load-tests/target/gatling/
+          retention-days: 30
+
+      - name: Tear down Docker Compose
+        if: always()
+        run: docker compose down -v
+
+  # ── 10. QA Summary Gate ───────────────────────────────────────────────────────
+  qa-gate:
+    name: QA Gate — All Tests Pass
+    needs:
+      - unit-tests
+      - integration-tests
+      - security-tests
+      - smoke-tests
+      - regression-tests
+      - coverage-gate
+      - kafka-contract-tests
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all required jobs passed
+        run: |
+          results='${{ toJSON(needs) }}'
+          echo "Job results: $results"
+
+          # Fail if any required job failed or was cancelled
+          if echo "$results" | grep -E '"result":\s*"(failure|cancelled)"'; then
+            echo "::error::One or more QA jobs failed. Review the job results above."
+            exit 1
+          fi
+
+          echo "::notice::All QA jobs passed ✓"

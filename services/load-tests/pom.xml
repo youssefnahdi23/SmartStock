@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.smartstock</groupId>
+        <artifactId>smartstock-services</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>smartstock-load-tests</artifactId>
+    <packaging>jar</packaging>
+    <name>SmartStock Load Tests</name>
+    <description>Gatling-based load and performance simulations for SmartStock services</description>
+
+    <properties>
+        <gatling.version>3.11.5</gatling.version>
+        <gatling-maven-plugin.version>4.9.6</gatling-maven-plugin.version>
+        <!-- Target service base URLs — override via -D flags in CI -->
+        <identity.base.url>http://localhost:8001</identity.base.url>
+        <inventory.base.url>http://localhost:8003</inventory.base.url>
+        <product.base.url>http://localhost:8002</product.base.url>
+        <!-- Load profile defaults -->
+        <load.users>50</load.users>
+        <load.duration.seconds>60</load.duration.seconds>
+        <load.ramp.seconds>10</load.ramp.seconds>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.gatling.highcharts</groupId>
+            <artifactId>gatling-charts-highcharts</artifactId>
+            <version>${gatling.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.gatling</groupId>
+            <artifactId>gatling-app</artifactId>
+            <version>${gatling.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Skip Spring Boot repackaging — this is not a runnable service -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+
+            <!-- Skip JaCoCo check — load tests have no line-coverage target -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>check</id>
+                        <phase>none</phase>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>io.gatling</groupId>
+                <artifactId>gatling-maven-plugin</artifactId>
+                <version>${gatling-maven-plugin.version}</version>
+                <configuration>
+                    <simulationClass>com.smartstock.loadtest.InventoryLoadSimulation</simulationClass>
+                    <jvmArgs>
+                        <jvmArg>-Didentity.base.url=${identity.base.url}</jvmArg>
+                        <jvmArg>-Dinventory.base.url=${inventory.base.url}</jvmArg>
+                        <jvmArg>-Dproduct.base.url=${product.base.url}</jvmArg>
+                        <jvmArg>-Dload.users=${load.users}</jvmArg>
+                        <jvmArg>-Dload.duration.seconds=${load.duration.seconds}</jvmArg>
+                        <jvmArg>-Dload.ramp.seconds=${load.ramp.seconds}</jvmArg>
+                    </jvmArgs>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

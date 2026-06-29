@@ -36,6 +36,7 @@
         <module>analytics-service</module>
         <module>common</module>
         <module>api-gateway</module>
+        <module>load-tests</module>
     </modules>
 
     <properties>
@@ -66,6 +67,16 @@
         <junit-jupiter.version>5.10.2</junit-jupiter.version>
         <mockito.version>5.8.0</mockito.version>
         <testcontainers.version>1.20.4</testcontainers.version>
+        <wiremock.version>3.4.2</wiremock.version>
+        <rest-assured.version>5.4.0</rest-assured.version>
+        <awaitility.version>4.2.1</awaitility.version>
+        <jacoco.version>0.8.12</jacoco.version>
+        <!-- Ratcheting line-coverage floor. Current real-module baseline (unit suite) is ~21%
+             (warehouse) up to ~91% (api-gateway). Set just under the current minimum so CI is
+             green and honest; ratchet UP (0.20 → 0.30 → 0.45 → … → 0.90 target) as the
+             Docker-backed integration suite and new unit tests land. Branch gate intentionally
+             omitted for now (branch coverage is still single-digit on most modules). -->
+        <jacoco.minimum.coverage>0.20</jacoco.minimum.coverage>
         
         <!-- Observability -->
         <opentelemetry.version>1.39.0</opentelemetry.version>
@@ -108,6 +119,36 @@
                 <version>${testcontainers.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- WireMock -->
+            <dependency>
+                <groupId>org.wiremock</groupId>
+                <artifactId>wiremock-standalone</artifactId>
+                <version>${wiremock.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- REST Assured -->
+            <dependency>
+                <groupId>io.rest-assured</groupId>
+                <artifactId>rest-assured</artifactId>
+                <version>${rest-assured.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.rest-assured</groupId>
+                <artifactId>spring-mock-mvc</artifactId>
+                <version>${rest-assured.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- Awaitility -->
+            <dependency>
+                <groupId>org.awaitility</groupId>
+                <artifactId>awaitility</artifactId>
+                <version>${awaitility.version}</version>
+                <scope>test</scope>
             </dependency>
 
             <!-- JWT -->
@@ -286,6 +327,36 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>spring-mock-mvc</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -328,7 +399,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>${jacoco.version}</version>
                 <executions>
                     <execution>
                         <goals>
@@ -341,6 +412,35 @@
                         <goals>
                             <goal>report</goal>
                         </goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.minimum.coverage}</minimum>
+                                        </limit>
+                                    </limits>
+                                    <excludes>
+                                        <!-- Exclude generated/config/infra from line-level gate -->
+                                        <exclude>**/*Application.class</exclude>
+                                        <exclude>**/config/**</exclude>
+                                        <exclude>**/exception/**</exclude>
+                                        <exclude>**/domain/model/**</exclude>
+                                        <exclude>**/api/dto/**</exclude>
+                                        <exclude>**/infrastructure/outbox/**</exclude>
+                                    </excludes>
+                                </rule>
+                            </rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -370,6 +470,8 @@
                                     <includes>
                                         <include>**/*IntegrationTest.java</include>
                                         <include>**/*RepositoryTest.java</include>
+                                        <include>**/*SmokeTest.java</include>
+                                        <include>**/*RegressionTest.java</include>
                                     </includes>
                                 </configuration>
                             </execution>

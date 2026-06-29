@@ -157,6 +157,8 @@
                     <excludes>
                         <exclude>**/*IntegrationTest.java</exclude>
                         <exclude>**/*RepositoryTest.java</exclude>
+                        <exclude>**/*SmokeTest.java</exclude>
+                        <exclude>**/*RegressionTest.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>

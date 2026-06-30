@@ -6,10 +6,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -60,6 +62,25 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(
                 HttpStatus.UNAUTHORIZED,
                 List.of(Map.of("code", "INVALID_CREDENTIALS", "message", "Invalid credentials")),
+                request);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNotFound(NoResourceFoundException ex,
+                                                               WebRequest request) {
+        return buildErrorResponse(
+                HttpStatus.NOT_FOUND,
+                List.of(Map.of("code", "NOT_FOUND", "message", "Resource not found")),
+                request);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, WebRequest request) {
+        return buildErrorResponse(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                List.of(Map.of("code", "METHOD_NOT_ALLOWED",
+                               "message", "HTTP method not supported for this endpoint")),
                 request);
     }
 

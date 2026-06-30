@@ -49,6 +49,7 @@ public class JwtService {
 
         return Jwts.builder()
                 .claims(extraClaims)
+                .id(UUID.randomUUID().toString())   // unique jti: distinct token per call, even within the same second
                 .subject(subject)
                 .issuer(jwtProperties.getIssuer())
                 .audience().add(jwtProperties.getAudience()).and()

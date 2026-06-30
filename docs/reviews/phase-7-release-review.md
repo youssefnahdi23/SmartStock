@@ -321,6 +321,40 @@ application/config defects** left for deliberate Phase-8 fixing (no production c
 **Re-promotion criterion:** once a service's IT suite is green under Docker, remove its
 `continue-on-error` and return it to the blocking `qa-gate` `needs`.
 
+### 7.3 identity-service stabilization results (2026-06-29)
+
+identity-service taken end-to-end with a local Docker host: **0 → ~55/69 IT tests passing**.
+Real defects fixed in production code (validated against Testcontainers):
+
+- **BUG-2 FIXED** — refresh-token uniqueness: added a random `jti` to every JWT
+  (`JwtService.buildToken`). AuthController IT now 8/8.
+- **BUG-1 FIXED (properly)** — `audit_logs` jsonb: replaced the too-broad `stringtype=unspecified`
+  workaround with `@JdbcTypeCode(SqlTypes.JSON)` on `AuditLog.oldValues/newValues`. (`stringtype`
+  globally broke `lower(?)` text queries → reverted.)
+- **BUG-6 FIXED (new, real prod bug)** — `UserRepository.findAllWithFilters` did
+  `LOWER(CONCAT('%', :search, '%'))`; a null `search` param has no inferable type → PostgreSQL
+  `function lower(bytea) does not exist` → **user listing 500 whenever search is null** (prod-wide).
+  Fixed with `CAST(:search AS string)`. UserController + pagination IT now pass.
+- **Test fixes** — `UserRepositoryTest` made `@Transactional` (full-context repo test wasn't rolled
+  back → unique-key collisions); corrected actuator/api-docs paths in smoke/security tests
+  (`/identity/actuator/...` → `/actuator/...`, which belongs to the context-path, not the controller).
+
+Remaining identity failures are **not "fix-the-bug" items** — they are out of scope or infra:
+
+| Remaining | Class | Nature |
+|-----------|-------|--------|
+| getRoleByName, updateRole, deleteRole, assignPermission (≈5) | RoleControllerIntegrationTest | **Out of scope** — endpoints are not implemented (`NoResourceFoundException`); building them is new functionality. |
+| register/login publish event (2) | IdentityKafkaEventIntegrationTest | **Infra** — need a Testcontainers Kafka broker (tests assert a real published event). |
+| productServiceStub / inventoryServiceStub (2) | CrossServiceRegressionTest | **Test setup** — WireMock stub/URL wiring returns 404. |
+| login_fiveWrongPasswords_locksAccount (1) | SecurityIntegrationTest | Account-lockout not enforced on login — real feature gap or test assumption. |
+| listPermissions_asPlainUser_403 (1) | SecurityIntegrationTest | Real authz gap (returns 200) — needs `@PreAuthorize` on the permissions endpoint. |
+| actuatorEnv 500, openApiDocs 401 (2) | Security/Smoke | `GlobalExceptionHandler` maps 404/405 → 500 (real correctness bug, **BUG-7**); api-docs not permitted by security. |
+
+**BUG-7 (new):** `GlobalExceptionHandler` returns 500 for `NoResourceFoundException` (→404) and
+`HttpRequestMethodNotSupportedException` (→405). Worth fixing for API correctness.
+
+The same triage pass is still owed for the other 7 services (**BUG-4**).
+
 ---
 
 ## 8. Recommended Commit

@@ -9,12 +9,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// Transactional so each test rolls back — this full-context (@SpringBootTest) repository test is
+// not auto-rolled-back, and shared unique data (username/email) would otherwise collide.
+@Transactional
 class UserRepositoryTest extends AbstractIntegrationTest {
 
     @Autowired

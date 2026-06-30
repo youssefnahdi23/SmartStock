@@ -18,10 +18,7 @@ public abstract class AbstractIntegrationTest {
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("smartstock_identity_test")
                     .withUsername("smartstock")
-                    .withPassword("smartstock")
-                    // jsonb columns (e.g. audit_logs.old_values/new_values) are mapped from String;
-                    // let PostgreSQL infer the type instead of rejecting the varchar binding.
-                    .withUrlParam("stringtype", "unspecified");
+                    .withPassword("smartstock");
 
     @BeforeAll
     static void startContainers() {

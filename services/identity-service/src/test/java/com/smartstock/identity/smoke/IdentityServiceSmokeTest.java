@@ -29,7 +29,7 @@ class IdentityServiceSmokeTest extends AbstractIntegrationTest {
     void healthEndpoint_returnsUp() {
         given()
         .when()
-            .get("/identity/actuator/health")
+            .get("/actuator/health")
         .then()
             .statusCode(200)
             .body("status", equalTo("UP"));
@@ -50,7 +50,7 @@ class IdentityServiceSmokeTest extends AbstractIntegrationTest {
     void openApiDocs_areAccessible() {
         given()
         .when()
-            .get("/identity/v3/api-docs")
+            .get("/v3/api-docs")
         .then()
             .statusCode(200);
     }

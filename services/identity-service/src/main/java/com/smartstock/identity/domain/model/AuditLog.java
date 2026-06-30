@@ -2,6 +2,8 @@ package com.smartstock.identity.domain.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -37,9 +39,11 @@ public class AuditLog {
     @Column(name = "action_type", nullable = false, length = 50)
     private String actionType;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "old_values", columnDefinition = "jsonb")
     private String oldValues;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "new_values", columnDefinition = "jsonb")
     private String newValues;
 

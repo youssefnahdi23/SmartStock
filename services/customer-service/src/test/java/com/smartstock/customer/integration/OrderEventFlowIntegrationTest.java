@@ -49,6 +49,8 @@ class OrderEventFlowIntegrationTest extends AbstractIntegrationTest {
                 .customerCode("TEST-" + UUID.randomUUID().toString().substring(0, 8))
                 .customerName("Test Customer")
                 .customerType("RETAIL")
+                .createdBy("test")
+                .updatedBy("test")
                 .build());
     }
 
@@ -110,8 +112,8 @@ class OrderEventFlowIntegrationTest extends AbstractIntegrationTest {
                 customer.getId(), new BigDecimal("300.00")));
 
         Customer unchanged = customerRepository.findById(customer.getId()).orElseThrow();
-        assertThat(unchanged.getTotalOrders()).isNull();
-        assertThat(unchanged.getTotalSpent()).isNull();
+        assertThat(unchanged.getTotalOrders()).isEqualTo(0);
+        assertThat(unchanged.getTotalSpent()).isEqualByComparingTo("0");
     }
 
     @Test

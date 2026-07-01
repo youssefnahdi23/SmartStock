@@ -61,8 +61,8 @@ public class InventoryCount {
     @Builder.Default
     private Integer adjustmentsCreated = 0;
 
-    @Column(name = "variance_rate", columnDefinition = "DECIMAL(8,2)")
-    private Double varianceRate;
+    @Column(name = "variance_rate", precision = 8, scale = 2)
+    private java.math.BigDecimal varianceRate;
 
     @Column(name = "created_by", nullable = false, length = 36)
     private String createdBy;

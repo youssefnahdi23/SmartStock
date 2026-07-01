@@ -29,8 +29,8 @@ public interface ProductRepository extends JpaRepository<Product, String> {
             SELECT DISTINCT p FROM Product p
             LEFT JOIN p.productCategories pc
             WHERE p.deletedAt IS NULL
-            AND (:search IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                 OR LOWER(p.sku) LIKE LOWER(CONCAT('%', :search, '%')))
+            AND (:search IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+                 OR LOWER(p.sku) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             AND (:active IS NULL OR p.active = :active)
             AND (:categoryId IS NULL OR pc.category.id = :categoryId)
             """)

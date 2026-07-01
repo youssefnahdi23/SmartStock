@@ -166,7 +166,7 @@ public class CountService {
         count.setStatus("COMPLETED");
         count.setTotalVariances(totalVar);
         count.setAdjustmentsCreated(adjustmentsCreated);
-        count.setVarianceRate(varianceRate);
+        count.setVarianceRate(java.math.BigDecimal.valueOf(varianceRate));
         count.setCompletedBy(actorId);
         count.setCompletedAt(Instant.now());
         count.setApproverComments(req.getApproverComments());

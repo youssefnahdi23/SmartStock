@@ -22,8 +22,8 @@ public interface WarehouseRepository extends JpaRepository<Warehouse, String> {
             SELECT w FROM Warehouse w
             WHERE w.deletedAt IS NULL
             AND (:search IS NULL
-                 OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%'))
-                 OR LOWER(w.code) LIKE LOWER(CONCAT('%', :search, '%')))
+                 OR LOWER(w.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+                 OR LOWER(w.code) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             AND (:type IS NULL OR w.type = :type)
             AND (:active IS NULL OR w.active = :active)
             """)

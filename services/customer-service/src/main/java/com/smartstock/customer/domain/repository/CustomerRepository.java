@@ -25,8 +25,8 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
                    (:status = 'ACTIVE' AND c.isActive = true AND c.suspensionReason IS NULL) OR
                    (:status = 'INACTIVE' AND c.isActive = false AND c.suspensionReason IS NULL) OR
                    (:status = 'SUSPENDED' AND c.isActive = false AND c.suspensionReason IS NOT NULL))
-              AND (:search IS NULL OR LOWER(c.customerName) LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(c.customerCode) LIKE LOWER(CONCAT('%', :search, '%')))
+              AND (:search IS NULL OR LOWER(c.customerName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+                   OR LOWER(c.customerCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """)
     Page<Customer> findWithFilters(
             @Param("type") String type,

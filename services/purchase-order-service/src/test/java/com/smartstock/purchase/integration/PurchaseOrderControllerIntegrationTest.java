@@ -15,20 +15,20 @@ class PurchaseOrderControllerIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void actuatorHealth_returnsUp() {
-        ResponseEntity<String> response = restTemplate.getForEntity("/api/v1/actuator/health", String.class);
+        ResponseEntity<String> response = restTemplate.getForEntity("/actuator/health", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("UP");
     }
 
     @Test
     void listPurchaseOrders_withoutToken_returns401() {
-        ResponseEntity<String> response = restTemplate.getForEntity("/api/v1/purchase-orders", String.class);
+        ResponseEntity<String> response = restTemplate.getForEntity("/purchase-orders", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
     void getPurchaseOrder_withoutToken_returns401() {
-        ResponseEntity<String> response = restTemplate.getForEntity("/api/v1/purchase-orders/non-existent", String.class);
+        ResponseEntity<String> response = restTemplate.getForEntity("/purchase-orders/non-existent", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
@@ -54,7 +54,7 @@ class PurchaseOrderControllerIntegrationTest extends AbstractIntegrationTest {
                 }
                 """;
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
-        ResponseEntity<String> response = restTemplate.postForEntity("/api/v1/purchase-orders", entity, String.class);
+        ResponseEntity<String> response = restTemplate.postForEntity("/purchase-orders", entity, String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
@@ -65,7 +65,7 @@ class PurchaseOrderControllerIntegrationTest extends AbstractIntegrationTest {
         String body = "{ \"notes\": \"Confirmed\" }";
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
-                "/api/v1/purchase-orders/po-001/confirm", entity, String.class);
+                "/purchase-orders/po-001/confirm", entity, String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
@@ -76,7 +76,7 @@ class PurchaseOrderControllerIntegrationTest extends AbstractIntegrationTest {
         String body = "{ \"reason\": \"Test cancellation\" }";
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
-                "/api/v1/purchase-orders/po-001/cancel", entity, String.class);
+                "/purchase-orders/po-001/cancel", entity, String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
@@ -92,7 +92,7 @@ class PurchaseOrderControllerIntegrationTest extends AbstractIntegrationTest {
                 """;
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
-                "/api/v1/purchase-orders/po-001/delivery", entity, String.class);
+                "/purchase-orders/po-001/delivery", entity, String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
@@ -103,7 +103,7 @@ class PurchaseOrderControllerIntegrationTest extends AbstractIntegrationTest {
         String body = "{ \"issueType\": \"DEFECTIVE_UNITS\", \"quantity\": 5 }";
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
-                "/api/v1/purchase-orders/po-001/quality-issue", entity, String.class);
+                "/purchase-orders/po-001/quality-issue", entity, String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 }

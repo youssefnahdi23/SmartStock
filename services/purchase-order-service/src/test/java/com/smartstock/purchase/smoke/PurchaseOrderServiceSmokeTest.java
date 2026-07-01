@@ -17,20 +17,20 @@ class PurchaseOrderServiceSmokeTest extends AbstractIntegrationTest {
 
     @Test
     void healthEndpoint_returnsUp() {
-        ResponseEntity<String> resp = restTemplate.getForEntity("/api/v1/actuator/health", String.class);
+        ResponseEntity<String> resp = restTemplate.getForEntity("/actuator/health", String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(resp.getBody()).contains("\"UP\"");
     }
 
     @Test
     void purchaseOrdersEndpoint_requiresAuth() {
-        ResponseEntity<String> resp = restTemplate.getForEntity("/api/v1/purchase-orders", String.class);
+        ResponseEntity<String> resp = restTemplate.getForEntity("/purchase-orders", String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
     void openApiDocs_areAccessible() {
-        ResponseEntity<String> resp = restTemplate.getForEntity("/api/v1/v3/api-docs", String.class);
+        ResponseEntity<String> resp = restTemplate.getForEntity("/v3/api-docs", String.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 }

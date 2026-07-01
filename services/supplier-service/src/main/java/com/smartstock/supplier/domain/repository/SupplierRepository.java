@@ -24,8 +24,8 @@ public interface SupplierRepository extends JpaRepository<Supplier, String> {
                    (:status = 'ACTIVE' AND s.isActive = true) OR
                    (:status = 'INACTIVE' AND s.isActive = false AND s.suspensionReason IS NULL) OR
                    (:status = 'SUSPENDED' AND s.isActive = false AND s.suspensionReason IS NOT NULL))
-              AND (:search IS NULL OR LOWER(s.supplierName) LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(s.supplierCode) LIKE LOWER(CONCAT('%', :search, '%')))
+              AND (:search IS NULL OR LOWER(s.supplierName) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+                   OR LOWER(s.supplierCode) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
               AND (:minRating IS NULL OR s.rating >= :minRating)
             """)
     Page<Supplier> findWithFilters(

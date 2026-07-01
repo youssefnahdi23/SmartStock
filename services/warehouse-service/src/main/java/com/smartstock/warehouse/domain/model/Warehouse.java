@@ -46,8 +46,9 @@ public class Warehouse {
     @Column(name = "postal_code", length = 20)
     private String postalCode;
 
+    @Builder.Default
     @Column(name = "country_code", length = 2)
-    private String country;
+    private String country = "US";  // DB column is NOT NULL DEFAULT 'US'; keep entity consistent
 
     @Column(name = "latitude", precision = 10, scale = 8)
     private BigDecimal latitude;

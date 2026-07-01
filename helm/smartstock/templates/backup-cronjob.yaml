@@ -1,0 +1,117 @@
+{{- $ctx := . -}}
+{{/*
+Logical database backups. A CronJob runs pg_dump for every database-backed
+service on a schedule, gzips each dump, uploads it to S3-compatible object
+storage (AWS S3 in prod, the in-cluster MinIO in dev), then prunes dumps older
+than backup.retentionDays. Restore procedure: docs/deployment/DISASTER_RECOVERY.md.
+
+Enabled by backup.enabled. Requires:
+  • the app DB Secret (DB_USER/DB_PASSWORD) — reused from the chart secret
+  • backup.s3.credentialsSecret exposing AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+*/}}
+{{- if $ctx.Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "smartstock.fullname" $ctx }}-db-backup
+  labels:
+    {{- include "smartstock.labels" $ctx | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ $ctx.Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: {{ $ctx.Values.backup.activeDeadlineSeconds | default 3600 }}
+      template:
+        metadata:
+          labels:
+            {{- include "smartstock.labels" $ctx | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "smartstock.serviceAccountName" $ctx }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: db-backup
+              image: {{ $ctx.Values.backup.image | quote }}
+              imagePullPolicy: {{ $ctx.Values.global.imagePullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ "ALL" ]
+              env:
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "smartstock.secretName" $ctx }}
+                      key: DB_USER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "smartstock.secretName" $ctx }}
+                      key: DB_PASSWORD
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $ctx.Values.backup.s3.credentialsSecret }}
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $ctx.Values.backup.s3.credentialsSecret }}
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: AWS_DEFAULT_REGION
+                  value: {{ $ctx.Values.backup.s3.region | quote }}
+                - name: S3_BUCKET
+                  value: {{ $ctx.Values.backup.s3.bucket | quote }}
+                - name: S3_ENDPOINT
+                  value: {{ $ctx.Values.backup.s3.endpoint | quote }}
+                - name: RETENTION_DAYS
+                  value: {{ $ctx.Values.backup.retentionDays | quote }}
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  # backup.image must provide pg_dump + aws CLI. The default
+                  # postgres:16-alpine adds aws-cli from the community repo.
+                  command -v aws >/dev/null 2>&1 || apk add --no-cache aws-cli >/dev/null
+                  ENDPOINT_ARG=""
+                  [ -n "$S3_ENDPOINT" ] && ENDPOINT_ARG="--endpoint-url $S3_ENDPOINT"
+                  STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+                  RC=0
+                  {{- range $name, $svc := $ctx.Values.services }}
+                  {{- if $svc.database.enabled }}
+                  echo ">> dumping {{ $svc.database.name }} from {{ $svc.database.host }}"
+                  if pg_dump -h {{ $svc.database.host }} -p {{ $svc.database.port | default 5432 }} \
+                       -d {{ $svc.database.name }} --no-owner --no-privileges \
+                     | gzip -9 \
+                     | aws $ENDPOINT_ARG s3 cp - \
+                         "s3://$S3_BUCKET/{{ $svc.database.name }}/{{ $svc.database.name }}-$STAMP.sql.gz"; then
+                    echo "   ok"
+                  else
+                    echo "   FAILED for {{ $svc.database.name }}"; RC=1
+                  fi
+                  {{- end }}
+                  {{- end }}
+                  echo ">> pruning dumps older than ${RETENTION_DAYS}d"
+                  CUTOFF="$(date -u -d "-${RETENTION_DAYS} days" +%s 2>/dev/null || echo 0)"
+                  aws $ENDPOINT_ARG s3 ls "s3://$S3_BUCKET/" --recursive | while read -r d t sz key; do
+                    obj_epoch="$(date -u -d "$d $t" +%s 2>/dev/null || echo 0)"
+                    if [ "$obj_epoch" -gt 0 ] && [ "$obj_epoch" -lt "$CUTOFF" ]; then
+                      echo "   deleting $key"
+                      aws $ENDPOINT_ARG s3 rm "s3://$S3_BUCKET/$key" || true
+                    fi
+                  done
+                  exit $RC
+              resources:
+                {{- toYaml $ctx.Values.backup.resources | nindent 16 }}
+{{- end }}

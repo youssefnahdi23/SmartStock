@@ -23,5 +23,32 @@ spec:
         target:
           type: Utilization
           averageUtilization: {{ $svc.hpa.targetCPUUtilizationPercentage | default 70 }}
+    {{- if dig "hpa" "targetMemoryUtilizationPercentage" false $svc }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $svc.hpa.targetMemoryUtilizationPercentage }}
+    {{- end }}
+  # Scale up quickly to absorb load; scale down slowly to avoid flapping when
+  # traffic is spiky (JVM warm-up makes churn expensive).
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ $ctx.Values.hpaBehavior.scaleUp.stabilizationWindowSeconds | default 30 }}
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: {{ $ctx.Values.hpaBehavior.scaleDown.stabilizationWindowSeconds | default 300 }}
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
 {{- end }}
 {{- end }}

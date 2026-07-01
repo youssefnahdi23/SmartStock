@@ -12,6 +12,21 @@ spec:
   {{- if not (dig "hpa" "enabled" false $svc) }}
   replicas: {{ $svc.replicas | default 1 }}
   {{- end }}
+  # ── Rolling updates ──────────────────────────────────────────────────────────
+  # Zero-downtime deploys: bring up surplus pods before terminating old ones and
+  # never drop below the desired count. minReadySeconds keeps a new pod out of
+  # rotation until it has been Ready and stable, so a crash-looping revision can't
+  # take the whole Deployment down mid-rollout.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      {{- /* IntOrString: emit integers bare and percent strings as-is — never
+           force-quote, or the API rejects an integer value like 0. */}}
+      maxSurge: {{ dig "rollingUpdate" "maxSurge" $ctx.Values.rollingUpdate.maxSurge $svc }}
+      maxUnavailable: {{ dig "rollingUpdate" "maxUnavailable" $ctx.Values.rollingUpdate.maxUnavailable $svc }}
+  revisionHistoryLimit: {{ $ctx.Values.revisionHistoryLimit | default 5 }}
+  minReadySeconds: {{ $ctx.Values.minReadySeconds | default 10 }}
+  progressDeadlineSeconds: {{ $ctx.Values.progressDeadlineSeconds | default 600 }}
   selector:
     matchLabels:
       {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 6 }}
@@ -21,6 +36,12 @@ spec:
         {{- include "smartstock.labels" $ctx | nindent 8 }}
         {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 8 }}
       annotations:
+        # Roll pods when the shared ConfigMap/Secret changes so config edits take
+        # effect on `helm upgrade` (envFrom does not auto-reload).
+        checksum/config: {{ include (print $ctx.Template.BasePath "/configmap.yaml") $ctx | sha256sum }}
+        {{- if $ctx.Values.secrets.create }}
+        checksum/secret: {{ include (print $ctx.Template.BasePath "/secret.yaml") $ctx | sha256sum }}
+        {{- end }}
         # Scrape Prometheus metrics from the actuator endpoint.
         prometheus.io/scrape: "true"
         prometheus.io/path: /api/v1/actuator/prometheus
@@ -30,6 +51,20 @@ spec:
       {{- with $ctx.Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Graceful shutdown: give Spring Boot time to drain in-flight requests and
+      # commit outbox work before SIGKILL. Pairs with server.shutdown=graceful.
+      terminationGracePeriodSeconds: {{ $ctx.Values.terminationGracePeriodSeconds | default 45 }}
+      {{- if $ctx.Values.topologySpread.enabled }}
+      # Spread replicas across nodes/zones so a single node/zone loss can't take
+      # out every replica of a service (availability during DR / node drain).
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ $ctx.Values.topologySpread.topologyKey | quote }}
+          whenUnsatisfiable: {{ $ctx.Values.topologySpread.whenUnsatisfiable | quote }}
+          labelSelector:
+            matchLabels:
+              {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 14 }}
       {{- end }}
       securityContext:
         runAsNonRoot: true
@@ -44,6 +79,13 @@ spec:
             readOnlyRootFilesystem: false
             capabilities:
               drop: [ "ALL" ]
+          # preStop sleep lets the Ingress/kube-proxy remove this pod from the
+          # Service endpoints before the JVM starts shutting down, so no request
+          # is routed to a terminating pod during a rolling update.
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "sh", "-c", "sleep {{ $ctx.Values.preStopSleepSeconds | default 10 }}" ]
           ports:
             - name: http
               containerPort: {{ $svc.port }}

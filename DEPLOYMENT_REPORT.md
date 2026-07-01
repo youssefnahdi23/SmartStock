@@ -147,3 +147,85 @@ runtime gates before GA sign-off.
 Stateless services — rollback = redeploy previous image tag. Database changes are
 Flyway-versioned and forward-only; no destructive migrations are present in RC1.
 `docker compose down` (without `-v`) preserves named volumes.
+
+On Kubernetes: `kubectl rollout undo deploy/<svc>` (5 revisions retained via
+`revisionHistoryLimit`). See §8.
+
+---
+
+## 7. Kubernetes / Helm production deployment (Phase 9 — DevOps)
+
+The Helm umbrella chart in [`helm/smartstock`](helm/README.md) renders the full
+platform per environment overlay. One `services` map drives a Deployment + Service
+(+ optional HPA / PDB / StatefulSet) per service.
+
+| Deliverable | Artifact | Status |
+|-------------|----------|--------|
+| Docker Compose | `docker-compose.yml` (8 services + gateway + infra + named volumes) | ✅ exists |
+| Kubernetes | `k8s/namespace.yaml` (restricted PSS) + Helm-rendered manifests | ✅ |
+| Helm | `helm/smartstock` umbrella chart, dev/prod overlays | ✅ lint + template clean |
+| Ingress | `templates/ingress.yaml` → api-gateway, TLS via cert-manager | ✅ prod |
+| Secrets | dev: chart-rendered · prod: `ExternalSecret` (ESO) → external store | ✅ two-tier |
+| ConfigMaps | `templates/configmap.yaml` (shared non-secret env) | ✅ |
+| Persistent Volumes | Postgres `StatefulSet` + `volumeClaimTemplates` per DB | ✅ (`postgres.enabled`) |
+| Horizontal Pod Autoscaler | CPU + memory targets, scale up/down behavior | ✅ inventory / sales-order / gateway |
+| Rolling Updates | `RollingUpdate` maxSurge 25% / maxUnavailable 0, minReadySeconds, config-checksum, graceful shutdown, preStop drain, PDB, topology spread | ✅ |
+| Backup Strategy | daily `pg_dump` CronJob → S3/MinIO, retention pruning | ✅ (`backup.enabled`) |
+| Disaster Recovery | runbook + `scripts/db-restore.sh` | ✅ [docs/deployment/DISASTER_RECOVERY.md](docs/deployment/DISASTER_RECOVERY.md) |
+
+### Deploy (prod)
+```bash
+# 1. Install External Secrets Operator + a ClusterSecretStore (one-time).
+# 2. Provision the S3 backup-credentials Secret (smartstock-backup-s3).
+kubectl apply -f k8s/namespace.yaml
+helm upgrade --install smartstock ./helm/smartstock \
+  -n smartstock-prod --create-namespace \
+  -f helm/smartstock/values-prod.yaml \
+  --set global.imageNamespace=<owner>/smartstock \
+  --set global.imageTag=<immutable-tag-or-digest>
+kubectl -n smartstock-prod rollout status deploy/api-gateway
+```
+
+### Deploy (local kind/minikube — self-contained, self-hosts Postgres)
+```bash
+kubectl apply -f k8s/namespace.yaml
+helm upgrade --install smartstock-dev ./helm/smartstock \
+  -n smartstock -f helm/smartstock/values-dev.yaml \
+  --set global.imageNamespace=<owner>/smartstock
+```
+
+---
+
+## 8. Verification — Phase 9 (executed)
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Chart lint (dev) | `helm lint … -f values-dev.yaml` | ✅ 0 failed |
+| Chart lint (prod) | `helm lint … -f values-prod.yaml` | ✅ 0 failed |
+| Render + schema (dev) | `helm template … \| kubeconform -strict` | ✅ 37 resources valid |
+| Render + schema (prod) | `helm template … \| kubeconform -strict` | ✅ 30 valid, 1 skipped (ExternalSecret CRD) |
+| DB names ↔ compose | static | ✅ all 8 match `docker-compose.yml` |
+| Prod DB hosts resolvable | static | ✅ all 8 set to `*.data.svc` (managed) |
+
+Helm v3.15.2 + kubeconform v0.6.7 (same versions as the `helm-validate` CI job),
+Kubernetes API 1.29.0. Both overlays render valid manifests.
+
+### 8.1 Live-cluster verification (executed on kind v0.23.0 / k8s v1.29.2)
+
+The chart was installed into a real cluster (kind, local-path StorageClass) to
+close the runtime gate for the deployment layer.
+
+| Check | Result |
+|-------|--------|
+| `helm install` dev overlay | ✅ succeeds (all 34 objects created) |
+| **Bug found & fixed** | `strategy.rollingUpdate.maxUnavailable` was quoted → API rejected `"0"` as a non-percent string. Fixed by emitting IntOrString unquoted. **kubeconform did not catch this; the live API server did.** |
+| Restricted-PSS admission | ✅ all pods admitted (app + Postgres) — no PodSecurity violations |
+| **Persistent Volumes** | ✅ 8/8 PVCs `Bound`, 8 PVs dynamically provisioned |
+| PV data persistence | ✅ wrote a row, deleted the pod, StatefulSet reattached the PVC, row read back intact |
+| Postgres StatefulSets | ✅ 8/8 `Running` + `Ready` (probes green) under restricted PSS |
+| Prod overlay (server-side dry-run) | ✅ HPA (autoscaling/v2), PDB (policy/v1), CronJob, Ingress, NetworkPolicy, rolling-update Deployments, topology spread all accepted by the API |
+| App Deployments | ⚠️ `ImagePullBackOff` — service images are not built/pushed to a registry in this environment. Pods pass admission + scheduling and fail only at image pull. Publishing images (CI → GHCR) closes this; it is not a chart defect. |
+
+**Remaining gate:** publish service images to the registry, then re-run to reach
+`Ready` app pods, and execute `scripts/smoke-test.sh` end-to-end (also needs Kafka
+deployed). The DevOps/deployment artifacts themselves are verified.

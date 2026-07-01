@@ -14,7 +14,7 @@ CREATE TABLE supplier_risk_assessment (
     key_risks TEXT,
     mitigation_actions TEXT,
     next_assessment_date DATE,
-    assessed_by UUID NOT NULL,
+    assessed_by VARCHAR(36) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT unique_assessment UNIQUE (supplier_id, assessment_date),

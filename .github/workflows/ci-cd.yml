@@ -1,0 +1,464 @@
+name: CI/CD Pipeline
+
+# Production-grade CI/CD for the SmartStock microservices reactor.
+#
+# Hard gates — the pipeline FAILS (blocks merge / blocks push of images) if:
+#   • any unit, integration, or contract test fails
+#   • aggregate line coverage < 90%            (coverage-gate)
+#   • any Flyway migration is invalid/duplicated (flyway-validation)
+#   • any Docker image fails to build           (docker-build)
+#   • the security / dependency scan finds a fail-level vulnerability (security-scan, dependency-scan)
+#
+# Advisory (report-only) stages: static-analysis (SonarCloud), CodeQL upload.
+#
+# Images are pushed to GHCR only from main / tags, and only after every gate is green.
+
+on:
+  push:
+    branches: [ main, develop, 'release/*' ]
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: cicd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+env:
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'temurin'
+  MAVEN_OPTS: '-Xmx3g -XX:+UseG1GC'
+  MAVEN_CLI_OPTS: '-B --no-transfer-progress'
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}/smartstock
+  COVERAGE_MIN: '90'
+
+jobs:
+  # ── 1. Compile & package the whole reactor ───────────────────────────────────
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build (skip tests)
+        run: mvn ${{ env.MAVEN_CLI_OPTS }} -f services/pom.xml clean install -DskipTests
+
+      - name: Upload service jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-jars
+          path: services/*/target/*.jar
+          retention-days: 1
+          if-no-files-found: error
+
+  # ── 2. Flyway migration validation (fails on duplicate versions) ──────────────
+  flyway-validation:
+    name: Flyway Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Flyway migration versions
+        run: bash scripts/check-flyway-versions.sh
+
+  # ── 3. Unit tests + JaCoCo (per-service matrix) ───────────────────────────────
+  unit-tests:
+    name: Unit Tests — ${{ matrix.service }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - common
+          - identity-service
+          - product-service
+          - inventory-service
+          - warehouse-service
+          - supplier-service
+          - customer-service
+          - purchase-order-service
+          - sales-order-service
+          - audit-service
+          - notification-service
+          - analytics-service
+          - reporting-service
+          - data-export-service
+          - order-service
+          - api-gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Run unit tests — ${{ matrix.service }}
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/${{ matrix.service }}/pom.xml \
+            test -Dsurefire.failIfNoSpecifiedTests=false
+
+      - name: Upload JaCoCo report — ${{ matrix.service }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-${{ matrix.service }}
+          path: services/${{ matrix.service }}/target/site/jacoco/
+          retention-days: 3
+          if-no-files-found: warn
+
+  # ── 4. Integration tests (Testcontainers / Docker-on-runner) ──────────────────
+  integration-tests:
+    name: Integration Tests — ${{ matrix.service }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - identity-service
+          - product-service
+          - inventory-service
+          - warehouse-service
+          - supplier-service
+          - customer-service
+          - purchase-order-service
+          - sales-order-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Run integration tests — ${{ matrix.service }}
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/${{ matrix.service }}/pom.xml \
+            verify -Pintegration-test \
+            -Dfailsafe.failIfNoSpecifiedTests=false
+
+      - name: Upload JaCoCo IT report — ${{ matrix.service }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-it-${{ matrix.service }}
+          path: services/${{ matrix.service }}/target/site/jacoco/
+          retention-days: 3
+          if-no-files-found: warn
+
+  # ── 5. Kafka contract tests ───────────────────────────────────────────────────
+  contract-tests:
+    name: Kafka Contract Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+      - name: Run Kafka topic contract tests
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/pom.xml \
+            test -Dtest="**/KafkaTopicContractTest" \
+            -Dsurefire.failIfNoSpecifiedTests=false
+
+  # ── 6. Coverage gate — aggregate line coverage must be ≥ 90% ──────────────────
+  coverage-gate:
+    name: Coverage Gate (≥ ${{ env.COVERAGE_MIN }}%)
+    needs: [ unit-tests, integration-tests ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all JaCoCo reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: jacoco-*
+          path: jacoco-reports/
+
+      - name: Enforce aggregate coverage floor
+        run: bash scripts/check-coverage.sh "${COVERAGE_MIN}" jacoco-reports
+
+      - name: Upload merged coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          directory: jacoco-reports/
+          flags: full-suite
+          name: smartstock-coverage
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # ── 7. Static analysis (advisory: Spotless + SonarCloud) ──────────────────────
+  static-analysis:
+    name: Static Analysis
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Spotless format check
+        run: mvn ${{ env.MAVEN_CLI_OPTS }} -f services/pom.xml spotless:check || true
+
+      - name: SonarCloud scan
+        if: ${{ env.SONAR_TOKEN != '' }}
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} -f services/pom.xml verify sonar:sonar \
+            -DskipTests -Dsonar.host.url=https://sonarcloud.io
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 8. CodeQL static security analysis (advisory upload) ──────────────────────
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+      - name: Build for CodeQL
+        run: mvn ${{ env.MAVEN_CLI_OPTS }} -f services/pom.xml clean install -DskipTests
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:java
+
+  # ── 9. Dependency scan — OWASP Dependency-Check (fails on high CVSS) ──────────
+  dependency-scan:
+    name: Dependency Scan (OWASP)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: OWASP Dependency-Check (fail on CVSS ≥ 7)
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} \
+            -f services/pom.xml \
+            org.owasp:dependency-check-maven:check \
+            -DfailBuildOnCVSS=7 \
+            -DskipProvidedScope=true \
+            -DnvdApiDelay=4000
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+
+      - name: Upload OWASP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-dependency-check
+          path: services/*/target/dependency-check-report.html
+          retention-days: 14
+
+  # ── 10. Docker build + Trivy image security scan (+ push on main/tags) ────────
+  docker-build:
+    name: Docker Build — ${{ matrix.service }}
+    needs:
+      - build
+      - flyway-validation
+      - unit-tests
+      - integration-tests
+      - contract-tests
+      - coverage-gate
+      - dependency-scan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - identity-service
+          - api-gateway
+          - product-service
+          - warehouse-service
+          - inventory-service
+          - supplier-service
+          - customer-service
+          - purchase-order-service
+          - sales-order-service
+          - audit-service
+          - notification-service
+          - reporting-service
+          - analytics-service
+          - data-export-service
+          - order-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download service jars
+        uses: actions/download-artifact@v4
+        with:
+          name: service-jars
+          path: services/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha,format=short
+
+      # Build locally first so we can scan the image before it is ever pushed.
+      - name: Build image (load into local Docker)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Trivy image security scan (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:sha-${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
+
+      # Only reached if build + Trivy passed. Guarded to main/tags.
+      - name: Push image to GHCR
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+
+  # ── 11. Deployment validation — compose config + live stack smoke ─────────────
+  deployment-validation:
+    name: Deployment Validation
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose config
+        run: docker compose -f docker-compose.yml config -q
+
+      - name: Boot core infra + identity service
+        run: |
+          docker compose -f docker-compose.yml up -d --wait \
+            postgres-identity kafka zookeeper redis identity-service \
+            || (docker compose logs --tail 200; exit 1)
+
+      - name: Smoke — identity actuator health is UP
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8001/api/v1/actuator/health | grep -q '"status":"UP"'; then
+              echo "identity-service healthy ✓"; exit 0
+            fi
+            echo "waiting for identity-service ($i/30)…"; sleep 5
+          done
+          echo "::error::identity-service did not become healthy"
+          docker compose logs --tail 200 identity-service
+          exit 1
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
+
+  # ── 12. Pipeline gate — every required stage must be green ────────────────────
+  pipeline-gate:
+    name: CI/CD Gate
+    needs:
+      - flyway-validation
+      - unit-tests
+      - integration-tests
+      - contract-tests
+      - coverage-gate
+      - dependency-scan
+      - docker-build
+      - deployment-validation
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Verify all required stages passed
+        run: |
+          results='${{ toJSON(needs) }}'
+          echo "Stage results: $results"
+          if echo "$results" | grep -E '"result":\s*"(failure|cancelled)"'; then
+            echo "::error::One or more required CI/CD stages failed."
+            exit 1
+          fi
+          echo "::notice::All CI/CD gates passed ✓"

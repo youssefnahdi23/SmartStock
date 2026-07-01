@@ -1,0 +1,31 @@
+# Local development overlay (kind / minikube).
+# Usage:
+#   helm upgrade --install smartstock-dev ./helm/smartstock \
+#     -n smartstock --create-namespace \
+#     -f helm/smartstock/values-dev.yaml \
+#     --set global.imageNamespace=<owner>/smartstock
+#
+# Assumes infra (postgres-*, kafka, redis, tempo, loki) already runs in-namespace
+# (enable the Bitnami subcharts in Chart.yaml, or reuse the compose infra via
+# kube-forwarding). Secrets are chart-rendered — DEV ONLY.
+
+springProfile: docker
+
+global:
+  imageTag: "1.0.0"
+  imagePullPolicy: IfNotPresent
+
+config:
+  tracingSamplingProbability: "1.0"
+
+secrets:
+  create: true
+  jwtSecret: "dev-only-jwt-secret-change-me-min-64-characters-000000000000000000"
+  dbUser: "smartstock"
+  dbPassword: "smartstock123"
+
+networkPolicy:
+  enabled: false
+
+ingress:
+  enabled: false

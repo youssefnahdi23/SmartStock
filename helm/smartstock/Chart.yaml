@@ -1,0 +1,36 @@
+apiVersion: v2
+name: smartstock
+description: >-
+  Umbrella Helm chart for the SmartStock AI microservices platform. Renders one
+  Deployment + Service (+ optional HPA/NetworkPolicy) per application service from
+  a single `services` map in values. Infrastructure (PostgreSQL, Kafka, Redis) is
+  expected to be provided externally (managed service or Bitnami subcharts) — see
+  helm/README.md.
+type: application
+
+# Chart version tracks the deployment topology; appVersion tracks the released
+# service image tag (kept in sync with services/pom.xml / release-please).
+version: 0.1.0
+appVersion: "1.0.0"
+
+maintainers:
+  - name: SmartStock Team
+    email: dev@smartstock.local
+
+# Infrastructure subcharts are intentionally left as opt-in dependencies. Enable
+# them for local (kind/minikube) smoke installs; in staging/prod point at managed
+# PostgreSQL/Kafka/Redis via values instead. Uncomment + `helm dependency update`.
+#
+# dependencies:
+#   - name: postgresql
+#     version: "15.x.x"
+#     repository: https://charts.bitnami.com/bitnami
+#     condition: postgresql.enabled
+#   - name: kafka
+#     version: "30.x.x"
+#     repository: https://charts.bitnami.com/bitnami
+#     condition: kafka.enabled
+#   - name: redis
+#     version: "20.x.x"
+#     repository: https://charts.bitnami.com/bitnami
+#     condition: redis.enabled

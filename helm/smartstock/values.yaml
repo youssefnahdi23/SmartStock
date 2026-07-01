@@ -1,0 +1,164 @@
+# Default values for the SmartStock umbrella chart.
+# Environment overlays: values-dev.yaml, values-prod.yaml.
+
+global:
+  # Container image registry + namespace. CI pushes to ghcr.io/<owner>/smartstock.
+  registry: ghcr.io
+  imageNamespace: OWNER/smartstock   # override with --set global.imageNamespace=<owner>/smartstock
+  imageTag: "1.0.0"                  # release tag; overlays/CD pin an immutable tag or digest
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []               # e.g. [{ name: ghcr-pull }]
+
+# Spring profile activated in every pod.
+springProfile: prod
+
+# Non-secret runtime config shared by all services (rendered into a ConfigMap).
+config:
+  kafkaBootstrapServers: "kafka:9092"
+  otelExporterOtlpEndpoint: "http://tempo:4318"
+  lokiUrl: "http://loki:3100"
+  tracingSamplingProbability: "0.1"
+
+# ── Secrets strategy ──────────────────────────────────────────────────────────
+# create=true  → the chart renders a Secret from the values below. Use for local
+#                dev (kind/minikube) only; NEVER commit real values.
+# create=false → the chart references an EXISTING Secret named `existingSecret`,
+#                managed out-of-band by External Secrets Operator / Sealed Secrets
+#                / SOPS. This is the staging/prod path — no plaintext in the chart.
+secrets:
+  create: true
+  existingSecret: ""        # required when create=false
+  # Keys consumed by the pods (must exist in the Secret regardless of source):
+  jwtSecret: "CHANGE_ME_min_64_char_dev_only_secret_xxxxxxxxxxxxxxxxxxxxxxxxx"
+  dbUser: "smartstock"
+  dbPassword: "CHANGE_ME_dev_only"
+
+# Default pod resource requests/limits (overridable per service).
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# Default readiness/liveness probe path. Actuator is under the /api/v1 context.
+# Switch to /api/v1/actuator/health/{liveness,readiness} once probe groups are
+# enabled (management.endpoint.health.probes.enabled=true) — see helm/README.md.
+probePath: /api/v1/actuator/health
+
+serviceAccount:
+  create: true
+  name: ""
+
+# Default-deny NetworkPolicy + allow-from-gateway. Off by default (needs a CNI
+# that enforces policy); enable in prod overlay.
+networkPolicy:
+  enabled: false
+
+# ── Application services ──────────────────────────────────────────────────────
+# Each entry renders a Deployment + Service. `database.enabled` toggles DB envs.
+# `dbHost` defaults to the per-service Postgres Service name (compose convention);
+# point at a managed instance in the prod overlay.
+services:
+  api-gateway:
+    port: 8080
+    replicas: 2
+    database:
+      enabled: false
+    hpa:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 12
+      targetCPUUtilizationPercentage: 70
+    gateway: true            # exposed via Ingress
+
+  identity-service:
+    port: 8001
+    replicas: 1
+    database:
+      enabled: true
+      host: postgres-identity
+      port: 5432
+      name: smartstock_identity
+
+  product-service:
+    port: 8002
+    replicas: 1
+    database:
+      enabled: true
+      host: postgres-product
+      port: 5432
+      name: smartstock_product
+
+  inventory-service:
+    port: 8003
+    replicas: 1
+    database:
+      enabled: true
+      host: postgres-inventory
+      port: 5432
+      name: smartstock_inventory
+    hpa:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+
+  warehouse-service:
+    port: 8004
+    replicas: 1
+    database:
+      enabled: true
+      host: postgres-warehouse
+      port: 5432
+      name: smartstock_warehouse
+
+  supplier-service:
+    port: 8005
+    replicas: 1
+    database:
+      enabled: true
+      host: postgres-supplier
+      port: 5432
+      name: smartstock_supplier
+
+  customer-service:
+    port: 8006
+    replicas: 1
+    database:
+      enabled: true
+      host: postgres-customer
+      port: 5432
+      name: smartstock_customer
+
+  purchase-order-service:
+    port: 8007
+    replicas: 1
+    database:
+      enabled: true
+      host: postgres-purchase-order
+      port: 5432
+      name: smartstock_purchase_order   # verify against docker-compose.yml
+
+  sales-order-service:
+    port: 8008
+    replicas: 1
+    database:
+      enabled: true
+      host: postgres-sales-order
+      port: 5432
+      name: smartstock_sales_order       # verify against docker-compose.yml
+    hpa:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+
+# Ingress for the API gateway (single public entrypoint).
+ingress:
+  enabled: false
+  className: nginx
+  host: smartstock.local
+  annotations: {}
+  tls: []

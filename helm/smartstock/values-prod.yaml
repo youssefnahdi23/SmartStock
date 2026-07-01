@@ -1,0 +1,77 @@
+# Production overlay.
+# Usage:
+#   helm upgrade --install smartstock ./helm/smartstock \
+#     -n smartstock-prod --create-namespace \
+#     -f helm/smartstock/values-prod.yaml \
+#     --set global.imageTag=<immutable-tag-or-digest>
+#
+# NO secrets in this file. secrets.create=false → the chart references an existing
+# Kubernetes Secret provisioned by External Secrets Operator / Sealed Secrets / SOPS.
+# That Secret MUST expose keys: JWT_SECRET, DB_USER, DB_PASSWORD.
+
+springProfile: prod
+
+global:
+  imagePullPolicy: IfNotPresent   # pin an immutable tag/digest via --set global.imageTag
+  imagePullSecrets:
+    - name: ghcr-pull
+
+config:
+  # Point at managed/clustered infra endpoints.
+  kafkaBootstrapServers: "kafka-bootstrap.messaging.svc:9092"
+  otelExporterOtlpEndpoint: "http://tempo.observability.svc:4318"
+  lokiUrl: "http://loki.observability.svc:3100"
+  tracingSamplingProbability: "0.1"
+
+secrets:
+  create: false
+  existingSecret: "smartstock-secrets"   # managed by External Secrets Operator
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+  limits:
+    cpu: "2"
+    memory: 1536Mi
+
+networkPolicy:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+  host: api.smartstock.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls:
+    - hosts: [ api.smartstock.example.com ]
+      secretName: smartstock-tls
+
+# Production autoscaling per roadmap M8 (inventory, sales-order, api-gateway).
+services:
+  api-gateway:
+    replicas: 2
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 12
+      targetCPUUtilizationPercentage: 70
+  inventory-service:
+    replicas: 2
+    database:
+      host: postgres-inventory.data.svc
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+  sales-order-service:
+    replicas: 2
+    database:
+      host: postgres-sales-order.data.svc
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70

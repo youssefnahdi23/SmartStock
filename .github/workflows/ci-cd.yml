@@ -79,6 +79,33 @@ jobs:
       - name: Validate Flyway migration versions
         run: bash scripts/check-flyway-versions.sh
 
+  # ── 2b. Helm chart validation (lint + render + schema-check both overlays) ─────
+  helm-validate:
+    name: Helm Chart Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.2
+      - name: Lint chart
+        run: |
+          helm lint ./helm/smartstock -f helm/smartstock/values-dev.yaml
+          helm lint ./helm/smartstock -f helm/smartstock/values-prod.yaml
+      - name: Render + schema-validate (kubeconform)
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin kubeconform
+          for overlay in dev prod; do
+            echo "── overlay: $overlay ──"
+            helm template smartstock ./helm/smartstock \
+              -f helm/smartstock/values-$overlay.yaml \
+              --set global.imageNamespace=smartstock/smartstock \
+            | kubeconform -strict -summary -kubernetes-version 1.29.0 \
+                -schema-location default -ignore-missing-schemas
+          done
+
   # ── 3. Unit tests + JaCoCo (per-service matrix) ───────────────────────────────
   unit-tests:
     name: Unit Tests — ${{ matrix.service }}
@@ -451,6 +478,7 @@ jobs:
     name: CI/CD Gate
     needs:
       - flyway-validation
+      - helm-validate
       - unit-tests
       - integration-tests
       - contract-tests

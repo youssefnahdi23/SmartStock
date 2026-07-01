@@ -1,0 +1,20 @@
+{{- $ctx := . -}}
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "smartstock.labels" $ctx | nindent 4 }}
+    {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $svc.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

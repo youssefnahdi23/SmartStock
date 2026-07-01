@@ -1,0 +1,27 @@
+{{- $ctx := . -}}
+{{- range $name, $svc := .Values.services }}
+{{- if dig "hpa" "enabled" false $svc }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "smartstock.labels" $ctx | nindent 4 }}
+    {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ $svc.hpa.minReplicas }}
+  maxReplicas: {{ $svc.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $svc.hpa.targetCPUUtilizationPercentage | default 70 }}
+{{- end }}
+{{- end }}

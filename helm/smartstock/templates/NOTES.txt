@@ -1,0 +1,19 @@
+SmartStock {{ .Chart.AppVersion }} deployed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Services rendered:
+{{- range $name, $svc := .Values.services }}
+  • {{ $name }} (port {{ $svc.port }}){{ if dig "hpa" "enabled" false $svc }} [HPA {{ $svc.hpa.minReplicas }}-{{ $svc.hpa.maxReplicas }}]{{ end }}
+{{- end }}
+
+Secrets: {{ if .Values.secrets.create }}rendered by chart (DEV MODE — do not use in prod){{ else }}external ({{ .Values.secrets.existingSecret }}){{ end }}
+
+Check rollout:
+  kubectl -n {{ .Release.Namespace }} get pods
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/identity-service
+
+{{- if .Values.ingress.enabled }}
+Public entrypoint: http(s)://{{ .Values.ingress.host }}/
+{{- else }}
+Ingress disabled — reach a service via port-forward:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/api-gateway 8080:8080
+{{- end }}

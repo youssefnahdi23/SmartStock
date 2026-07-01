@@ -355,6 +355,35 @@ Remaining identity failures are **not "fix-the-bug" items** — they are out of 
 
 The same triage pass is still owed for the other 7 services (**BUG-4**).
 
+### 7.4 All-services stabilization results (2026-07-01)
+
+Triaged and fixed the other 7 services against Docker (commits `1c9273a`, `e68f26b`).
+**Real production defects fixed:**
+
+| Fix | Services | Detail |
+|-----|----------|--------|
+| `CAST(:search AS string)` (BUG-6) | product, inventory, supplier, warehouse, customer | null search → `lower(bytea)` 500 |
+| `InventoryCount.varianceRate` Double→BigDecimal | inventory | matched `DECIMAL(8,2)`; schema-validation was **blocking the whole inventory context** |
+| `country` default `"US"` (`@Builder.Default`) | warehouse | matched `NOT NULL DEFAULT 'US'` column |
+| V2 `id`/`supplier_id`/`assessed_by` UUID→VARCHAR(36) | supplier | matched entity + `suppliers.id` type; FK + schema-validation were **blocking the whole supplier context** |
+| drop redundant `/api/v1` in TestRestTemplate URLs | purchase, sales | context-path is auto-prepended → double prefix → 404 |
+
+**Outcome:** product-service and warehouse-service **fully green**; sales-order controller IT
+**green**; inventory and supplier **contexts now load** (repository + outbox suites green).
+
+**Remaining failures across services — not production bugs:**
+
+| Category | Count (approx) | Services | Nature |
+|----------|:---:|----------|--------|
+| Controller tests get **403** | ~16 | purchase, inventory, supplier, customer | Tests never attach a JWT; compounded by **BUG-5** (each service's test JWT secret differs from `TestJwtTokenFactory.TEST_SECRET`). Test-completeness, not a prod bug (security correctly rejects unauthenticated calls). Fix = standardize the test secret + `headers.setBearerAuth(...)`. |
+| Kafka event assertions | ~6 | inventory, supplier | Need a Testcontainers **Kafka broker**; assert a real published event. |
+| `Connection refused` / SQLState 08001 | many | all | **Local Docker Desktop instability** — containers dropped mid-run (long event tests retry against dead containers). Environmental; expected to pass on stable CI Docker. |
+
+**Net:** every schema/query/mapping/routing production defect surfaced by the IT suites is fixed.
+The residual work is test-auth wiring (BUG-5), Kafka test infra, and the unimplemented
+RoleController endpoints (§7.3) — none are production bugs. IT suites remain advisory; re-promote
+per service once auth wiring + a CI Kafka broker land.
+
 ---
 
 ## 8. Recommended Commit

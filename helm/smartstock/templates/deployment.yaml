@@ -1,0 +1,99 @@
+{{- $ctx := . -}}
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "smartstock.labels" $ctx | nindent 4 }}
+    {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 4 }}
+spec:
+  {{- if not (dig "hpa" "enabled" false $svc) }}
+  replicas: {{ $svc.replicas | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "smartstock.labels" $ctx | nindent 8 }}
+        {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 8 }}
+      annotations:
+        # Scrape Prometheus metrics from the actuator endpoint.
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /api/v1/actuator/prometheus
+        prometheus.io/port: {{ $svc.port | quote }}
+    spec:
+      serviceAccountName: {{ include "smartstock.serviceAccountName" $ctx }}
+      {{- with $ctx.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ $name }}
+          image: {{ include "smartstock.image" (dict "svc" $name "ctx" $ctx) }}
+          imagePullPolicy: {{ $ctx.Values.global.imagePullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: [ "ALL" ]
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "smartstock.fullname" $ctx }}-config
+          env:
+            - name: SERVER_PORT
+              value: {{ $svc.port | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ $name | quote }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "smartstock.secretName" $ctx }}
+                  key: JWT_SECRET
+            {{- if $svc.database.enabled }}
+            - name: DB_HOST
+              value: {{ $svc.database.host | quote }}
+            - name: DB_PORT
+              value: {{ $svc.database.port | default 5432 | quote }}
+            - name: DB_NAME
+              value: {{ $svc.database.name | quote }}
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "smartstock.secretName" $ctx }}
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "smartstock.secretName" $ctx }}
+                  key: DB_PASSWORD
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ $ctx.Values.probePath }}
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: {{ $ctx.Values.probePath }}
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml ($svc.resources | default $ctx.Values.resources) | nindent 12 }}
+{{- end }}

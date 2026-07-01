@@ -1,0 +1,35 @@
+{{- if .Values.ingress.enabled }}
+{{- $ctx := . -}}
+{{/* Route all public traffic to the api-gateway service. */}}
+{{- $gwPort := 8080 -}}
+{{- range $name, $svc := .Values.services }}
+  {{- if $svc.gateway }}{{ $gwPort = $svc.port }}{{ end }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "smartstock.fullname" $ctx }}
+  labels:
+    {{- include "smartstock.labels" $ctx | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: {{ $gwPort }}
+{{- end }}

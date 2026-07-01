@@ -285,7 +285,7 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
         void healthEndpoint_isPubliclyAccessible() {
             given()
             .when()
-                .get("/identity/actuator/health")
+                .get("/actuator/health")
             .then()
                 .statusCode(200)
                 .body("status", equalTo("UP"));
@@ -295,7 +295,7 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
         void actuatorEnv_isNotPubliclyAccessible() {
             given()
             .when()
-                .get("/identity/actuator/env")
+                .get("/actuator/env")
             .then()
                 .statusCode(anyOf(equalTo(401), equalTo(403), equalTo(404)));
         }

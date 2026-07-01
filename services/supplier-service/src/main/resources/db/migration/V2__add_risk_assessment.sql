@@ -1,8 +1,8 @@
 -- V2: Add supplier_risk_assessment table
 
 CREATE TABLE supplier_risk_assessment (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
+    supplier_id VARCHAR(36) NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
     assessment_date DATE NOT NULL,
     financial_health_score DECIMAL(3, 2),
     delivery_reliability_score DECIMAL(3, 2),
@@ -14,7 +14,7 @@ CREATE TABLE supplier_risk_assessment (
     key_risks TEXT,
     mitigation_actions TEXT,
     next_assessment_date DATE,
-    assessed_by UUID NOT NULL,
+    assessed_by VARCHAR(36) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT unique_assessment UNIQUE (supplier_id, assessment_date),

@@ -67,7 +67,7 @@ class SalesOrderControllerIntegrationTest extends AbstractIntegrationTest {
                 """;
 
         HttpEntity<String> entity = new HttpEntity<>(body, authHeaders);
-        ResponseEntity<Map> response = restTemplate.postForEntity("/api/v1/sales-orders", entity, Map.class);
+        ResponseEntity<Map> response = restTemplate.postForEntity("/sales-orders", entity, Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
@@ -90,8 +90,8 @@ class SalesOrderControllerIntegrationTest extends AbstractIntegrationTest {
                 """;
         HttpEntity<String> entity = new HttpEntity<>(body, authHeaders);
 
-        restTemplate.postForEntity("/api/v1/sales-orders", entity, Map.class);
-        ResponseEntity<Map> response = restTemplate.postForEntity("/api/v1/sales-orders", entity, Map.class);
+        restTemplate.postForEntity("/sales-orders", entity, Map.class);
+        ResponseEntity<Map> response = restTemplate.postForEntity("/sales-orders", entity, Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -100,7 +100,7 @@ class SalesOrderControllerIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("GET /sales-orders/{soId} - returns 404 for missing order")
     void getSalesOrder_notFound_returns404() {
         ResponseEntity<Map> response = restTemplate.exchange(
-                "/api/v1/sales-orders/non-existent-id",
+                "/sales-orders/non-existent-id",
                 HttpMethod.GET, new HttpEntity<>(authHeaders), Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -110,7 +110,7 @@ class SalesOrderControllerIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("GET /sales-orders - returns paged list")
     void listSalesOrders_returnsList() {
         ResponseEntity<Map> response = restTemplate.exchange(
-                "/api/v1/sales-orders?page=0&size=20",
+                "/sales-orders?page=0&size=20",
                 HttpMethod.GET, new HttpEntity<>(authHeaders), Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -129,7 +129,7 @@ class SalesOrderControllerIntegrationTest extends AbstractIntegrationTest {
                 """;
         HttpEntity<String> entity = new HttpEntity<>(confirmBody, authHeaders);
         ResponseEntity<Map> response = restTemplate.postForEntity(
-                "/api/v1/sales-orders/" + soId + "/confirm", entity, Map.class);
+                "/sales-orders/" + soId + "/confirm", entity, Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
@@ -149,7 +149,7 @@ class SalesOrderControllerIntegrationTest extends AbstractIntegrationTest {
                 """;
         HttpEntity<String> entity = new HttpEntity<>(cancelBody, authHeaders);
         ResponseEntity<Map> response = restTemplate.postForEntity(
-                "/api/v1/sales-orders/" + soId + "/cancel", entity, Map.class);
+                "/sales-orders/" + soId + "/cancel", entity, Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
@@ -168,7 +168,7 @@ class SalesOrderControllerIntegrationTest extends AbstractIntegrationTest {
                 }
                 """, soNumber);
         HttpEntity<String> entity = new HttpEntity<>(body, authHeaders);
-        ResponseEntity<Map> response = restTemplate.postForEntity("/api/v1/sales-orders", entity, Map.class);
+        ResponseEntity<Map> response = restTemplate.postForEntity("/sales-orders", entity, Map.class);
         Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
         return (String) data.get("soId");
     }

@@ -1,9 +1,11 @@
 spring:
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  # Kafka auto-configuration stays ENABLED so KafkaProperties (required by the transactional
+  # outbox auto-config) is present. Tests never reach a broker: producers are lazy and listener
+  # containers are stopped from starting.
   kafka:
     bootstrap-servers: localhost:9092
+    listener:
+      auto-startup: false
 
   jpa:
     hibernate:

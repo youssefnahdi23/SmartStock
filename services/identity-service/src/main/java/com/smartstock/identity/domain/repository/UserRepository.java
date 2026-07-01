@@ -33,8 +33,8 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL " +
            "AND (:role IS NULL OR EXISTS (SELECT r FROM u.roles r WHERE r.name = :role)) " +
            "AND (:active IS NULL OR u.active = :active) " +
-           "AND (:search IS NULL OR LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "     OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
+           "AND (:search IS NULL OR LOWER(u.username) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')) " +
+           "     OR LOWER(u.email) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))")
     Page<User> findAllWithFilters(
             @Param("role")   String role,
             @Param("active") Boolean active,

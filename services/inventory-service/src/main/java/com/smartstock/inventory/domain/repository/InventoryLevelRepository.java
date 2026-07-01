@@ -24,7 +24,7 @@ public interface InventoryLevelRepository extends JpaRepository<InventoryLevel, 
             SELECT il FROM InventoryLevel il
             WHERE il.warehouseId = :warehouseId
             AND (:lowStockOnly = false OR il.quantityOnHand <= il.reorderPoint)
-            AND (:search IS NULL OR LOWER(il.productId) LIKE LOWER(CONCAT('%', :search, '%')))
+            AND (:search IS NULL OR LOWER(il.productId) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """)
     Page<InventoryLevel> findByWarehouseWithFilters(
             @Param("warehouseId") String warehouseId,

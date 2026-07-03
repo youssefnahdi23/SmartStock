@@ -3,6 +3,7 @@ package com.smartstock.product.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -48,6 +49,18 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(
                 HttpStatus.BAD_REQUEST,
                 List.of(Map.of("code", "FILE_TOO_LARGE", "message", "Upload file exceeds the 50MB limit")),
+                request);
+    }
+
+    // Also catches AuthorizationDeniedException from @PreAuthorize (its subclass);
+    // without this handler, method-security denials fall into the generic 500.
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(
+            AccessDeniedException ex, WebRequest request) {
+        return buildErrorResponse(
+                HttpStatus.FORBIDDEN,
+                List.of(Map.of("code", "INSUFFICIENT_PERMISSIONS",
+                        "message", "You do not have permission to perform this action")),
                 request);
     }
 

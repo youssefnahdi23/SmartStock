@@ -43,6 +43,9 @@ public class JwtAuthenticationGlobalFilter implements GlobalFilter, Ordered {
 
     private static final List<String> PUBLIC_PATHS = List.of(
             "/api/v1/auth/**",
+            // Self-service registration is public by design — identity-service
+            // permits it unauthenticated; the gateway must mirror that.
+            "/api/v1/users/register",
             "/actuator/**",
             "/swagger-ui/**",
             "/swagger-ui.html",

@@ -5,7 +5,8 @@ auth_enabled: false
 
 server:
   http_listen_port: 3100
-  log_level: ${LOG_LEVEL:-info}
+  # Requires -config.expand-env=true (set in docker-compose.yml). Lowercase only.
+  log_level: ${LOKI_LOG_LEVEL:-info}
 
 common:
   path_prefix: /loki

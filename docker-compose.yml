@@ -578,7 +578,8 @@ services:
       WAREHOUSE_SERVICE_URL: http://warehouse-service:8004
       SUPPLIER_SERVICE_URL: http://supplier-service:8005
       CUSTOMER_SERVICE_URL: http://customer-service:8006
-      ORDER_SERVICE_URL: http://purchase-order-service:8007
+      PURCHASE_ORDER_SERVICE_URL: http://purchase-order-service:8007
+      SALES_ORDER_SERVICE_URL: http://sales-order-service:8008
       AUDIT_SERVICE_URL: http://audit-service:8009
       NOTIFICATION_SERVICE_URL: http://notification-service:8010
       REPORTING_SERVICE_URL: http://reporting-service:8011

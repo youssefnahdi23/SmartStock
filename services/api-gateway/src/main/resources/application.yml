@@ -136,12 +136,24 @@ spring:
                 fallbackUri: forward:/fallback
 
         # ──────────────────────────────────────────────────────────────────────
-        # ORDER SERVICE  (port 8007)
+        # ORDER SERVICES  (purchase 8007 / sales 8008)
+        # The legacy /api/v1/orders route pointed at a path no controller serves
+        # (K-2: order-service is superseded); route the real APIs instead.
         # ──────────────────────────────────────────────────────────────────────
-        - id: order-service
-          uri: ${ORDER_SERVICE_URL:http://localhost:8007}
+        - id: purchase-order-service
+          uri: ${PURCHASE_ORDER_SERVICE_URL:http://localhost:8007}
           predicates:
-            - Path=/api/v1/orders/**
+            - Path=/api/v1/purchase-orders/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: orderCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        - id: sales-order-service
+          uri: ${SALES_ORDER_SERVICE_URL:http://localhost:8008}
+          predicates:
+            - Path=/api/v1/sales-orders/**
           filters:
             - name: CircuitBreaker
               args:
@@ -259,12 +271,19 @@ spring:
           filters:
             - RewritePath=/api-docs/customer, /api/v1/api-docs
 
-        - id: order-api-docs
-          uri: ${ORDER_SERVICE_URL:http://localhost:8007}
+        - id: purchase-order-api-docs
+          uri: ${PURCHASE_ORDER_SERVICE_URL:http://localhost:8007}
           predicates:
-            - Path=/api-docs/order
+            - Path=/api-docs/purchase-order
           filters:
-            - RewritePath=/api-docs/order, /api/v1/api-docs
+            - RewritePath=/api-docs/purchase-order, /api/v1/api-docs
+
+        - id: sales-order-api-docs
+          uri: ${SALES_ORDER_SERVICE_URL:http://localhost:8008}
+          predicates:
+            - Path=/api-docs/sales-order
+          filters:
+            - RewritePath=/api-docs/sales-order, /api/v1/api-docs
 
         - id: analytics-api-docs
           uri: ${ANALYTICS_SERVICE_URL:http://localhost:8012}
@@ -406,8 +425,10 @@ springdoc:
         url: /api-docs/supplier
       - name: Customer Service
         url: /api-docs/customer
-      - name: Order Service
-        url: /api-docs/order
+      - name: Purchase Order Service
+        url: /api-docs/purchase-order
+      - name: Sales Order Service
+        url: /api-docs/sales-order
       - name: Analytics Service
         url: /api-docs/analytics
     urls-primary-name: Identity Service

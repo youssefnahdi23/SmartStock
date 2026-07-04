@@ -134,7 +134,7 @@ let token = sessionStorage.getItem('ss_token') || null;
 
 const SECTIONS = [
   { key: 'products',        title: 'Products',        list: '/products',
-    create: { path: '/products', tpl: { name: 'Wireless Mouse', sku: 'SKU-' + rnd(), description: 'Demo product', unitPrice: 29.99, unitCost: 12.5, unit: 'piece', brand: 'Acme' } } },
+    create: { path: '/products', tpl: { name: 'Wireless Mouse', sku: 'SKU-' + rnd(), description: 'Demo product', unitPrice: 29.99, unitCost: 12.5, unit: 'PIECE', brand: 'Acme' } } },
   { key: 'warehouses',      title: 'Warehouses',      list: '/warehouses',
     create: { path: '/warehouses', tpl: { code: 'WH-' + rnd(), name: 'Central Warehouse', description: 'Demo warehouse', type: 'DISTRIBUTION',
       location: { address: '1 Logistics Way', city: 'Tunis', country: 'TN', zipCode: '1000' },

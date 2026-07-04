@@ -46,6 +46,10 @@ public class JwtAuthenticationGlobalFilter implements GlobalFilter, Ordered {
             // Self-service registration is public by design — identity-service
             // permits it unauthenticated; the gateway must mirror that.
             "/api/v1/users/register",
+            // Static console UI (src/main/resources/static) — the page itself is
+            // public; every API call it makes still carries a Bearer token.
+            "/",
+            "/index.html",
             "/actuator/**",
             "/swagger-ui/**",
             "/swagger-ui.html",

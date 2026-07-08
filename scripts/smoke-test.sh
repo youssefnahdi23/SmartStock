@@ -177,10 +177,12 @@ echo ""
 echo -e "${BOLD}── Phase 2: Happy path ─────────────────────────────────────${RESET}"
 echo -e "  Flow: authenticate → create product → stock-in → sales order → deliver"
 
-TOKEN="$(curl -fs -X POST "http://${HOST}:8001/api/v1/auth/login" \
+# Login goes through the gateway (8080): it rewrites /api/v1/auth/** onto
+# identity's internal /api/v1/identity/auth/** layout, like any real client.
+TOKEN="$(curl -fs -X POST "http://${HOST}:8080/api/v1/auth/login" \
   -H 'Content-Type: application/json' \
   -d "{\"username\":\"${SMOKE_USER:-admin}\",\"password\":\"${SMOKE_PASSWORD:?set SMOKE_PASSWORD to run Phase 2}\"}" \
-  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+  | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')"
 
 if [ -z "$TOKEN" ]; then
   fail "Could not obtain auth token from identity-service"

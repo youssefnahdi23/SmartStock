@@ -44,11 +44,16 @@ spring:
         # ──────────────────────────────────────────────────────────────────────
         # IDENTITY SERVICE  (port 8001)
         # ──────────────────────────────────────────────────────────────────────
+        # Identity is the one service whose controllers sit under an extra
+        # /identity prefix (/api/v1/identity/auth/**, .../users/** …), unlike the
+        # rest of the fleet which matches the public path 1:1. Rewrite the public
+        # gateway paths onto that internal layout.
         - id: identity-auth
           uri: ${IDENTITY_SERVICE_URL:http://localhost:8001}
           predicates:
             - Path=/api/v1/auth/**
           filters:
+            - RewritePath=/api/v1/(?<rest>auth.*), /api/v1/identity/$\{rest}
             - name: CircuitBreaker
               args:
                 name: identityCircuitBreaker
@@ -59,6 +64,7 @@ spring:
           predicates:
             - Path=/api/v1/users/**, /api/v1/roles/**, /api/v1/permissions/**
           filters:
+            - RewritePath=/api/v1/(?<rest>(users|roles|permissions).*), /api/v1/identity/$\{rest}
             - name: CircuitBreaker
               args:
                 name: identityCircuitBreaker
@@ -130,12 +136,24 @@ spring:
                 fallbackUri: forward:/fallback
 
         # ──────────────────────────────────────────────────────────────────────
-        # ORDER SERVICE  (port 8007)
+        # ORDER SERVICES  (purchase 8007 / sales 8008)
+        # The legacy /api/v1/orders route pointed at a path no controller serves
+        # (K-2: order-service is superseded); route the real APIs instead.
         # ──────────────────────────────────────────────────────────────────────
-        - id: order-service
-          uri: ${ORDER_SERVICE_URL:http://localhost:8007}
+        - id: purchase-order-service
+          uri: ${PURCHASE_ORDER_SERVICE_URL:http://localhost:8007}
           predicates:
-            - Path=/api/v1/orders/**
+            - Path=/api/v1/purchase-orders/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: orderCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        - id: sales-order-service
+          uri: ${SALES_ORDER_SERVICE_URL:http://localhost:8008}
+          predicates:
+            - Path=/api/v1/sales-orders/**
           filters:
             - name: CircuitBreaker
               args:
@@ -253,12 +271,19 @@ spring:
           filters:
             - RewritePath=/api-docs/customer, /api/v1/api-docs
 
-        - id: order-api-docs
-          uri: ${ORDER_SERVICE_URL:http://localhost:8007}
+        - id: purchase-order-api-docs
+          uri: ${PURCHASE_ORDER_SERVICE_URL:http://localhost:8007}
           predicates:
-            - Path=/api-docs/order
+            - Path=/api-docs/purchase-order
           filters:
-            - RewritePath=/api-docs/order, /api/v1/api-docs
+            - RewritePath=/api-docs/purchase-order, /api/v1/api-docs
+
+        - id: sales-order-api-docs
+          uri: ${SALES_ORDER_SERVICE_URL:http://localhost:8008}
+          predicates:
+            - Path=/api-docs/sales-order
+          filters:
+            - RewritePath=/api-docs/sales-order, /api/v1/api-docs
 
         - id: analytics-api-docs
           uri: ${ANALYTICS_SERVICE_URL:http://localhost:8012}
@@ -400,8 +425,10 @@ springdoc:
         url: /api-docs/supplier
       - name: Customer Service
         url: /api-docs/customer
-      - name: Order Service
-        url: /api-docs/order
+      - name: Purchase Order Service
+        url: /api-docs/purchase-order
+      - name: Sales Order Service
+        url: /api-docs/sales-order
       - name: Analytics Service
         url: /api-docs/analytics
     urls-primary-name: Identity Service

@@ -27,5 +27,23 @@ secrets:
 networkPolicy:
   enabled: false
 
+# Self-host Postgres in-cluster so `helm install` works standalone on kind/minikube
+# (renders a StatefulSet + PVC per DB). Small footprint for laptops.
+postgres:
+  enabled: true
+  storageSize: 2Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Backups off by default in dev; flip on to exercise the CronJob against MinIO:
+#   backup.enabled=true, backup.s3.endpoint=http://minio:9000
+backup:
+  enabled: false
+
 ingress:
   enabled: false

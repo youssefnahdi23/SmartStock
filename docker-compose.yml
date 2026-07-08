@@ -1,5 +1,3 @@
-version: '3.8'
-
 # SmartStock AI — Full-Stack Docker Compose (Stabilization M-2)
 #
 # One-command startup:
@@ -248,6 +246,11 @@ services:
       ZOOKEEPER_SYNC_LIMIT: 2
       ZOOKEEPER_INIT_LIMIT: 5
       ZOO_LOG4J_ROOT_LOGLEVEL: ${LOG_LEVEL:-INFO}
+      # ZooKeeper 3.5+ disables 4-letter-word commands by default; the healthcheck
+      # below relies on `ruok`, so it must be whitelisted or the check never passes.
+      # cp-zookeeper's property template ignores unknown ZOOKEEPER_* vars, so this
+      # must go in as a JVM system property.
+      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=ruok"
     ports:
       - "2181:2181"
     healthcheck:
@@ -418,13 +421,17 @@ services:
     container_name: smartstock-loki
     restart: unless-stopped
     environment:
-      LOKI_LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Loki (Go) only accepts lowercase levels — keep decoupled from the
+      # Java-style LOG_LEVEL (usually INFO), which Loki rejects at startup.
+      LOKI_LOG_LEVEL: ${LOKI_LOG_LEVEL:-info}
     volumes:
       - ./infrastructure/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
     ports:
       - "3100:3100"
-    command: -config.file=/etc/loki/local-config.yaml
+    # -config.expand-env is required: the config file uses ${LOG_LEVEL:-info},
+    # which Loki treats as a literal (and fails) unless env expansion is enabled.
+    command: -config.file=/etc/loki/local-config.yaml -config.expand-env=true
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
       interval: 10s
@@ -440,11 +447,15 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
 
   tempo:
-    image: grafana/tempo:latest
+    # Pinned: tempo-config.yml uses the Tempo 2.x schema; grafana/tempo:latest
+    # (v3.0.0+) removed the top-level ingester/compactor fields and fails to boot.
+    image: grafana/tempo:2.8.2
     container_name: smartstock-tempo
     restart: unless-stopped
     environment:
-      TEMPO_LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Tempo (Go) only accepts lowercase levels — do NOT derive this from the
+      # Java-style LOG_LEVEL (usually INFO), which Tempo rejects at startup.
+      TEMPO_LOG_LEVEL: ${TEMPO_LOG_LEVEL:-info}
     volumes:
       - ./infrastructure/tempo-config.yml:/etc/tempo.yaml:ro
       - tempo-data:/var/tempo
@@ -452,7 +463,9 @@ services:
       - "3200:3200"
       - "4317:4317"
       - "4318:4318"
-    command: ["-config.file=/etc/tempo.yaml"]
+    # -config.expand-env is required: the config file uses ${TEMPO_LOG_LEVEL:-info},
+    # which Tempo treats as a literal (and fails) unless env expansion is enabled.
+    command: ["-config.file=/etc/tempo.yaml", "-config.expand-env=true"]
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3200/status"]
       interval: 10s
@@ -521,7 +534,8 @@ services:
     volumes:
       - mailpit-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8025/api/v1/info"]
+      # The mailpit image ships busybox wget but no curl.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025/api/v1/info"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -564,7 +578,8 @@ services:
       WAREHOUSE_SERVICE_URL: http://warehouse-service:8004
       SUPPLIER_SERVICE_URL: http://supplier-service:8005
       CUSTOMER_SERVICE_URL: http://customer-service:8006
-      ORDER_SERVICE_URL: http://purchase-order-service:8007
+      PURCHASE_ORDER_SERVICE_URL: http://purchase-order-service:8007
+      SALES_ORDER_SERVICE_URL: http://sales-order-service:8008
       AUDIT_SERVICE_URL: http://audit-service:8009
       NOTIFICATION_SERVICE_URL: http://notification-service:8010
       REPORTING_SERVICE_URL: http://reporting-service:8011

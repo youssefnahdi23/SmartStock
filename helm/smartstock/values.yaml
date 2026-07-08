@@ -42,6 +42,38 @@ resources:
     cpu: "1"
     memory: 1Gi
 
+# ── Rolling updates / availability ────────────────────────────────────────────
+# Zero-downtime deploys. maxSurge adds temporary capacity; maxUnavailable=0 means
+# no old pod is torn down until a new one is Ready. Overridable per service via
+# services.<svc>.rollingUpdate.{maxSurge,maxUnavailable}.
+rollingUpdate:
+  maxSurge: "25%"
+  maxUnavailable: 0
+revisionHistoryLimit: 5           # ReplicaSets kept for `kubectl rollout undo`
+minReadySeconds: 10               # pod must stay Ready this long before counting
+progressDeadlineSeconds: 600      # mark rollout failed if not complete in 10m
+terminationGracePeriodSeconds: 45 # drain window before SIGKILL (graceful shutdown)
+preStopSleepSeconds: 10           # endpoint-deregistration delay before shutdown
+
+# PodDisruptionBudget — protect availability during node drains / cluster upgrades.
+# Only rendered for multi-replica or HPA-managed services (see templates/pdb.yaml).
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: 1
+
+# Spread replicas across nodes/zones. Enable in prod for HA.
+topologySpread:
+  enabled: false
+  topologyKey: kubernetes.io/hostname
+  whenUnsatisfiable: ScheduleAnyway   # DoNotSchedule for hard anti-affinity
+
+# HPA scaling behavior (applied to every HPA-managed service).
+hpaBehavior:
+  scaleUp:
+    stabilizationWindowSeconds: 30
+  scaleDown:
+    stabilizationWindowSeconds: 300
+
 # Default readiness/liveness probe path. Actuator is under the /api/v1 context.
 # Switch to /api/v1/actuator/health/{liveness,readiness} once probe groups are
 # enabled (management.endpoint.health.probes.enabled=true) — see helm/README.md.
@@ -55,6 +87,60 @@ serviceAccount:
 # that enforces policy); enable in prod overlay.
 networkPolicy:
   enabled: false
+
+# ── Self-hosted PostgreSQL (Persistent Volumes) ───────────────────────────────
+# Renders a StatefulSet + headless Service + PersistentVolumeClaim per
+# database-backed service (see templates/postgres-statefulset.yaml). Use on
+# kind/minikube or self-managed clusters. In prod set enabled=false and point
+# services.<svc>.database.host at a managed instance (RDS / Cloud SQL).
+postgres:
+  enabled: false
+  image: postgres:16-alpine
+  storageClass: ""       # "" = cluster default StorageClass; set explicitly in prod
+  storageSize: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# ── Backup strategy ───────────────────────────────────────────────────────────
+# CronJob that pg_dumps every database to S3-compatible object storage and prunes
+# old dumps. Restore: docs/deployment/DISASTER_RECOVERY.md.
+backup:
+  enabled: false
+  schedule: "0 2 * * *"          # daily 02:00 UTC
+  retentionDays: 14
+  image: postgres:16-alpine       # must provide pg_dump + aws CLI
+  activeDeadlineSeconds: 3600
+  s3:
+    bucket: smartstock-backups
+    region: us-east-1
+    endpoint: ""                  # "" = AWS S3; set to MinIO URL for in-cluster/dev
+    credentialsSecret: smartstock-backup-s3   # keys: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+# ── External Secrets Operator (prod secrets path) ─────────────────────────────
+# Sync JWT_SECRET/DB_USER/DB_PASSWORD from an external store into the Secret named
+# by secrets.existingSecret. Requires ESO + a (Cluster)SecretStore.
+externalSecret:
+  enabled: false
+  refreshInterval: 1h
+  secretStore:
+    name: smartstock-secret-store
+    kind: ClusterSecretStore
+  remoteKeys:                     # k8s secret key -> remote store key
+    JWT_SECRET: smartstock/jwt-secret
+    DB_USER: smartstock/db-user
+    DB_PASSWORD: smartstock/db-password
 
 # ── Application services ──────────────────────────────────────────────────────
 # Each entry renders a Deployment + Service. `database.enabled` toggles DB envs.

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SmartStock — Services &amp; API Reference</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2cm 1.8cm 2.2cm 1.8cm;
+    @bottom-center {
+      content: "SmartStock — Services & API Reference  ·  Page " counter(page) " of " counter(pages);
+      font-size: 8pt; color: #8b94a7;
+      font-family: "DejaVu Sans", sans-serif;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "DejaVu Sans", sans-serif;
+    font-size: 9.5pt; line-height: 1.5; color: #1a2233;
+    margin: 0;
+  }
+  h1 { font-size: 22pt; margin: 0 0 2pt 0; color: #10203f; }
+  h2 {
+    font-size: 14pt; color: #10203f; margin: 22pt 0 8pt 0;
+    padding-bottom: 4pt; border-bottom: 2px solid #2563eb;
+    page-break-after: avoid;
+  }
+  h3 { font-size: 11pt; color: #1e3a8a; margin: 14pt 0 5pt 0; page-break-after: avoid; }
+  p { margin: 5pt 0; }
+  code, pre {
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 8.2pt;
+  }
+  code { background: #eef2f7; padding: 1pt 3pt; border-radius: 3px; }
+  pre {
+    background: #f3f5f9; border: 1px solid #dfe4ec; border-radius: 5px;
+    padding: 8pt 10pt; overflow-x: hidden; white-space: pre-wrap;
+    word-wrap: break-word; page-break-inside: avoid; margin: 6pt 0;
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    border-collapse: collapse; width: 100%; margin: 6pt 0;
+    font-size: 8.6pt; page-break-inside: auto;
+  }
+  th {
+    background: #10203f; color: #fff; text-align: left;
+    padding: 4pt 6pt; font-size: 8.4pt;
+  }
+  td { border-bottom: 1px solid #dfe4ec; padding: 3.5pt 6pt; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7f9fc; }
+  tr { page-break-inside: avoid; }
+  .badge {
+    display: inline-block; font-size: 7.4pt; font-weight: bold;
+    padding: 1pt 5pt; border-radius: 8px; color: #fff;
+  }
+  .badge.get { background: #16a34a; }
+  .badge.post { background: #2563eb; }
+  .badge.put { background: #d97706; }
+  .badge.del { background: #dc2626; }
+  .badge.live { background: #16a34a; }
+  .badge.planned { background: #8b94a7; }
+  .note {
+    background: #fffbeb; border-left: 3px solid #d97706;
+    padding: 6pt 10pt; margin: 8pt 0; border-radius: 0 4px 4px 0;
+    page-break-inside: avoid;
+  }
+  .info {
+    background: #eff6ff; border-left: 3px solid #2563eb;
+    padding: 6pt 10pt; margin: 8pt 0; border-radius: 0 4px 4px 0;
+    page-break-inside: avoid;
+  }
+  .cover { text-align: left; margin-bottom: 10pt; }
+  .cover .meta { color: #6b7486; font-size: 9pt; margin-top: 2pt; }
+  .toc { columns: 2; column-gap: 24pt; font-size: 9pt; margin: 8pt 0 0 0; }
+  .toc div { margin: 2pt 0; }
+  .mono { font-family: "DejaVu Sans Mono", monospace; font-size: 8.2pt; }
+  .small { font-size: 8pt; color: #6b7486; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>SmartStock AI</h1>
+  <div style="color:#4a5878; font-size:12pt;">Services &amp; API Reference — Local Development Environment</div>
+  <div class="meta">Version 1.0.0 &nbsp;·&nbsp; Generated 2026-07-04 &nbsp;·&nbsp; Branch: release/1.0.0</div>
+</div>
+
+<div class="info">
+<b>What this document is:</b> a practical reference for accessing the SmartStock platform and its
+microservice APIs — service catalog, ports, authentication, endpoint reference, and copy-paste
+workflow examples. Intended as the go-to guide for future development and testing sessions.
+</div>
+
+<h2>1. Platform Overview</h2>
+<p>
+SmartStock is an inventory-management platform built as Spring Boot 3 / Java 21 microservices.
+All external traffic enters through the <b>API Gateway</b> (Spring Cloud Gateway) on
+<code>http://localhost:8080</code>, which also serves a built-in <b>web console UI</b> at its root.
+Each domain service owns its own PostgreSQL database (no shared databases), and services
+communicate through REST via the gateway plus asynchronous Kafka events.
+</p>
+
+<h3>Starting and stopping the stack</h3>
+<pre><code># from /home/youssef/Projects/SmartStock
+docker compose up -d          # start everything (~30 containers)
+docker compose ps             # health check — all app services report (healthy)
+docker compose down           # stop (data volumes are preserved)</code></pre>
+<p class="small">Note: a local <span class="mono">docker-compose.override.yml</span> caps JVM/Kafka memory for the 8&nbsp;GB host — keep it when running locally.</p>
+
+<h2>2. Access Points</h2>
+<table>
+  <tr><th>What</th><th>URL</th><th>Credentials</th></tr>
+  <tr><td><b>Web Console (main UI)</b></td><td><span class="mono">http://localhost:8080</span></td><td><span class="mono">system.admin / Admin@SmartStock2026!</span></td></tr>
+  <tr><td><b>REST API (gateway)</b></td><td><span class="mono">http://localhost:8080/api/v1/…</span></td><td>JWT Bearer token (see §3)</td></tr>
+  <tr><td>Grafana — metrics, logs, traces</td><td><span class="mono">http://localhost:3000</span></td><td><span class="mono">admin / admin123</span></td></tr>
+  <tr><td>Prometheus — raw metrics</td><td><span class="mono">http://localhost:9090</span></td><td>—</td></tr>
+  <tr><td>pgAdmin — database browser</td><td><span class="mono">http://localhost:5050</span></td><td>see <span class="mono">docker-compose.yml</span></td></tr>
+  <tr><td>RabbitMQ management</td><td><span class="mono">http://localhost:15672</span></td><td><span class="mono">guest / guest</span></td></tr>
+  <tr><td>Mailpit — outgoing email capture</td><td><span class="mono">http://localhost:8025</span></td><td>—</td></tr>
+  <tr><td>MinIO console — object storage</td><td><span class="mono">http://localhost:9001</span></td><td><span class="mono">minioadmin / minioadmin</span></td></tr>
+</table>
+<div class="note">
+<b>Security note:</b> these are development-only default credentials. Rotate the admin password via
+<span class="mono">POST /api/v1/users/{id}/change-password</span> before any shared or production deployment.
+</div>
+
+<h2>3. Authentication</h2>
+<p>
+Authentication is handled by the <b>Identity Service</b> (JWT + RBAC, per ADR-0005). Log in once,
+then send the access token on every request. Access tokens live <b>1 hour</b>; refresh tokens ~30 days.
+</p>
+<pre><code># 1. Log in — returns data.accessToken and data.refreshToken
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"system.admin","password":"Admin@SmartStock2026!"}'
+
+# 2. Use the token on every call
+export TOKEN="&lt;data.accessToken&gt;"
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/products
+
+# 3. Refresh when expired
+curl -X POST http://localhost:8080/api/v1/auth/refresh \
+  -H "Content-Type: application/json" -d '{"refreshToken":"&lt;data.refreshToken&gt;"}'</code></pre>
+
+<h3>Roles (seeded)</h3>
+<table>
+  <tr><th>Role</th><th>Scope</th></tr>
+  <tr><td class="mono">SYSTEM_ADMIN</td><td>Full system access (the seeded <span class="mono">system.admin</span> user)</td></tr>
+  <tr><td class="mono">WAREHOUSE_MANAGER</td><td>Warehouse operations and staff management</td></tr>
+  <tr><td class="mono">INVENTORY_OPERATOR</td><td>Stock operations (stock-in/out, transfers, counts)</td></tr>
+  <tr><td class="mono">SUPPLIER_MANAGER</td><td>Supplier and purchase-order management</td></tr>
+  <tr><td class="mono">REPORTER</td><td>Read-only analytics and reporting</td></tr>
+  <tr><td class="mono">AUDITOR</td><td>Audit log access only</td></tr>
+</table>
+
+<h3>Response envelope</h3>
+<p>All services answer with a consistent envelope — check <code>data</code> on success, <code>errors[]</code> on failure:</p>
+<pre><code>{ "data": { … } | [ … ],  "meta": { "timestamp", "page", "size", "total", … },
+  "errors": [ { "message", "code" } ]   // only on failure (4xx/5xx)
+}</code></pre>
+<p>List endpoints paginate with <code>?page=0&amp;size=20</code>. Every response carries a <code>correlationId</code> for tracing in Grafana/Tempo.</p>
+
+<h2>4. Service Catalog</h2>
+<table>
+  <tr><th>Service</th><th>Port</th><th>Gateway route</th><th>Purpose</th><th>Status</th></tr>
+  <tr><td>API Gateway</td><td class="mono">8080</td><td class="mono">/ (console), /api/v1/**</td><td>Routing, console UI, single entry point</td><td><span class="badge live">LIVE</span></td></tr>
+  <tr><td>Identity</td><td class="mono">8001</td><td class="mono">/api/v1/auth, /users, /roles, /permissions</td><td>Login, JWT, users, RBAC</td><td><span class="badge live">LIVE</span></td></tr>
+  <tr><td>Product</td><td class="mono">8002</td><td class="mono">/api/v1/products</td><td>Catalog, SKUs, barcodes/QR, categories, import/export</td><td><span class="badge live">LIVE</span></td></tr>
+  <tr><td>Inventory</td><td class="mono">8003</td><td class="mono">/api/v1/inventory</td><td>Stock levels, movements, adjustments, counts, reservations</td><td><span class="badge live">LIVE</span></td></tr>
+  <tr><td>Warehouse</td><td class="mono">8004</td><td class="mono">/api/v1/warehouses</td><td>Warehouses, zones, shelves, bins, capacity</td><td><span class="badge live">LIVE</span></td></tr>
+  <tr><td>Supplier</td><td class="mono">8005</td><td class="mono">/api/v1/suppliers</td><td>Suppliers, contacts, contracts, deliveries, performance</td><td><span class="badge live">LIVE</span></td></tr>
+  <tr><td>Customer</td><td class="mono">8006</td><td class="mono">/api/v1/customers</td><td>Customers, contacts, addresses, segments</td><td><span class="badge live">LIVE</span></td></tr>
+  <tr><td>Purchase Order</td><td class="mono">8007</td><td class="mono">/api/v1/purchase-orders</td><td>POs: create, confirm, receive, quality issues</td><td><span class="badge live">LIVE</span></td></tr>
+  <tr><td>Sales Order</td><td class="mono">8008</td><td class="mono">/api/v1/sales-orders</td><td>SOs: create, confirm, pick, ship, deliver</td><td><span class="badge live">LIVE</span></td></tr>
+  <tr><td>Notification</td><td class="mono">8009</td><td class="mono">/api/v1/notifications</td><td>Email/alert dispatch (via Mailpit locally)</td><td><span class="badge planned">PLANNED</span></td></tr>
+  <tr><td>Reporting</td><td class="mono">8010</td><td class="mono">/api/v1/reports</td><td>Business reports</td><td><span class="badge planned">PLANNED</span></td></tr>
+  <tr><td>Data Export</td><td class="mono">8011</td><td class="mono">/api/v1/exports</td><td>Bulk data exports</td><td><span class="badge planned">PLANNED</span></td></tr>
+  <tr><td>Analytics</td><td class="mono">8012</td><td class="mono">/api/v1/analytics</td><td>KPIs, demand forecasting</td><td><span class="badge planned">PLANNED</span></td></tr>
+  <tr><td>Audit</td><td class="mono">—</td><td class="mono">/api/v1/audit</td><td>Audit trail queries</td><td><span class="badge planned">PLANNED</span></td></tr>
+</table>
+<p class="small">
+“Planned” services exist as skeleton modules in <span class="mono">services/</span> with gateway routes
+pre-configured, but are not deployed in docker-compose yet. Note: the gateway route for
+<span class="mono">/api/v1/audit</span> currently points at port 8008 (sales-order’s port) — fix before enabling the audit service.
+</p>
+
+<h3>Infrastructure (for direct access / debugging)</h3>
+<table>
+  <tr><th>Component</th><th>Host port(s)</th><th>Notes</th></tr>
+  <tr><td>PostgreSQL (one per service)</td><td class="mono">5432–5439</td><td>identity 5432, product 5433, inventory 5434, warehouse 5435, supplier 5436, customer 5437, purchase-order 5438, sales-order 5439 — user/db <span class="mono">smartstock</span></td></tr>
+  <tr><td>Kafka / Zookeeper</td><td class="mono">9092, 29092 / 2181</td><td>Domain events (user, product, stock movements…)</td></tr>
+  <tr><td>Redis</td><td class="mono">6379</td><td>Caching / rate limiting</td></tr>
+  <tr><td>RabbitMQ</td><td class="mono">5672 (AMQP), 15672 (UI)</td><td>Messaging</td></tr>
+  <tr><td>MinIO</td><td class="mono">9000 (S3 API), 9001 (UI)</td><td>Object storage (product images, exports)</td></tr>
+  <tr><td>Mailpit</td><td class="mono">1025 (SMTP), 8025 (UI)</td><td>Catches all outgoing email locally</td></tr>
+  <tr><td>Loki / Tempo</td><td class="mono">3100 / 3200, 4317–4318 (OTLP)</td><td>Logs and traces backing Grafana</td></tr>
+</table>
+
+<h2>5. API Endpoint Reference</h2>
+<p>All paths below are relative to <code>http://localhost:8080</code> (the gateway) and require the <code>Authorization: Bearer</code> header except login/refresh.</p>
+
+<h3>Identity — auth &amp; user management</h3>
+<table>
+  <tr><th style="width:52px;">Method</th><th>Path</th><th>Description</th></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/auth/login</td><td>Log in (username + password) → tokens</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/auth/refresh</td><td>Exchange refresh token for a new access token</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/auth/logout</td><td>Revoke the current refresh token</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/auth/forgot-password &nbsp;·&nbsp; /reset-password</td><td>Password reset flow (email lands in Mailpit)</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/users/register</td><td>Create a user account</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/users &nbsp;·&nbsp; /users/{id}</td><td>List / read users</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/users/{id}/change-password · /deactivate · /reactivate</td><td>Account lifecycle</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/users/{id}/roles</td><td>Assign a role (<span class="badge del">DEL</span> …/roles/{roleId} to revoke)</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/roles &nbsp;·&nbsp; /api/v1/permissions</td><td>List roles / permissions</td></tr>
+</table>
+
+<h3>Product — catalog &amp; barcodes</h3>
+<table>
+  <tr><th style="width:52px;">Method</th><th>Path</th><th>Description</th></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/products</td><td>Create product (name, sku, price, cost, unit, reorder point…)</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/products</td><td>List / search products (paged)</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/products/{id}</td><td>Read by id</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/products/sku/{sku}</td><td>Lookup by SKU</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/products/by-barcode/{barcode}</td><td><b>Scan:</b> lookup by barcode digits</td></tr>
+  <tr><td><span class="badge put">PUT</span></td><td class="mono">/api/v1/products/{id}</td><td>Update product</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/products/{id}/barcode &nbsp;·&nbsp; /qrcode</td><td>Generate barcode / QR code for the product</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/products/{id}/deactivate &nbsp;·&nbsp; /reactivate</td><td>Lifecycle</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/products/import</td><td>Bulk import (multipart CSV)</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/products/export</td><td>Export catalog</td></tr>
+  <tr><td><span class="badge get">GET</span> <span class="badge post">POST</span></td><td class="mono">/api/v1/products/categories &nbsp;·&nbsp; /categories/{id}</td><td>Category management</td></tr>
+</table>
+
+<h3>Inventory — stock operations</h3>
+<table>
+  <tr><th style="width:52px;">Method</th><th>Path</th><th>Description</th></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/inventory/stock-in</td><td>Receive stock (productId, warehouseId, quantity, unitCost)</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/inventory/stock-out</td><td>Issue / ship stock out</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/inventory/adjustments</td><td>Correct stock (± quantity, reason e.g. DAMAGED, LOST)</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/inventory/transfers</td><td>Move stock between warehouses</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/inventory/reservations</td><td>Reserve stock (e.g. for a sales order)</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/inventory/stock/{productId}/{warehouseId}</td><td>Stock level for a product in one warehouse</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/inventory/products/{productId}/stock</td><td>Stock for a product across all warehouses</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/inventory/warehouses/{warehouseId}/stock</td><td>All stock in a warehouse</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/inventory/transactions</td><td>Movement history (filterable)</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/inventory/counts &nbsp;·&nbsp; /counts/{id}/items &nbsp;·&nbsp; /counts/{id}/complete</td><td>Physical inventory counting workflow</td></tr>
+</table>
+
+<h3>Warehouse — physical layout</h3>
+<table>
+  <tr><th style="width:52px;">Method</th><th>Path</th><th>Description</th></tr>
+  <tr><td><span class="badge post">POST</span> <span class="badge get">GET</span></td><td class="mono">/api/v1/warehouses &nbsp;·&nbsp; /{id}</td><td>Create / list / read warehouses (code, name, location…)</td></tr>
+  <tr><td><span class="badge put">PUT</span></td><td class="mono">/api/v1/warehouses/{id}</td><td>Update; <span class="mono">POST …/deactivate · /reactivate</span> for lifecycle</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/warehouses/{id}/capacity-report</td><td>Utilization report</td></tr>
+  <tr><td><span class="badge post">POST</span> <span class="badge get">GET</span></td><td class="mono">…/{id}/zones &nbsp;·&nbsp; …/zones/{z}/shelves &nbsp;·&nbsp; …/shelves/{s}/bins</td><td>Zones → shelves → bins hierarchy</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/warehouses/{id}/bins/available</td><td>Find free bins</td></tr>
+</table>
+
+<h3>Supplier &amp; Customer</h3>
+<table>
+  <tr><th style="width:52px;">Method</th><th>Path</th><th>Description</th></tr>
+  <tr><td><span class="badge post">POST</span> <span class="badge get">GET</span> <span class="badge put">PUT</span> <span class="badge del">DEL</span></td><td class="mono">/api/v1/suppliers &nbsp;·&nbsp; /{id}</td><td>Supplier CRUD; <span class="mono">/suspend · /resume · /by-rating · /{id}/performance</span></td></tr>
+  <tr><td><span class="badge post">POST</span> <span class="badge get">GET</span></td><td class="mono">/api/v1/suppliers/{id}/contacts · /contracts · /deliveries</td><td>Related records; <span class="mono">POST …/deliveries/{id}/confirm</span></td></tr>
+  <tr><td><span class="badge post">POST</span> <span class="badge get">GET</span> <span class="badge put">PUT</span> <span class="badge del">DEL</span></td><td class="mono">/api/v1/customers &nbsp;·&nbsp; /{id}</td><td>Customer CRUD; <span class="mono">/suspend · /resume · /by-segment</span></td></tr>
+  <tr><td><span class="badge post">POST</span> <span class="badge get">GET</span></td><td class="mono">/api/v1/customers/{id}/contacts · /addresses · /orders</td><td>Related records</td></tr>
+</table>
+
+<h3>Purchase Orders &amp; Sales Orders</h3>
+<table>
+  <tr><th style="width:52px;">Method</th><th>Path</th><th>Description</th></tr>
+  <tr><td><span class="badge post">POST</span> <span class="badge get">GET</span></td><td class="mono">/api/v1/purchase-orders &nbsp;·&nbsp; /{id}</td><td>Create / list / read POs</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/purchase-orders/{id}/confirm · /delivery · /cancel · /quality-issue</td><td>PO lifecycle: confirm → receive delivery (feeds stock-in) → close</td></tr>
+  <tr><td><span class="badge post">POST</span> <span class="badge get">GET</span></td><td class="mono">/api/v1/sales-orders &nbsp;·&nbsp; /{id}</td><td>Create / list / read SOs</td></tr>
+  <tr><td><span class="badge post">POST</span></td><td class="mono">/api/v1/sales-orders/{id}/confirm · /pick · /shipments · /delivery/{shipmentId} · /cancel</td><td>SO lifecycle: confirm → pick → ship → deliver</td></tr>
+  <tr><td><span class="badge get">GET</span></td><td class="mono">/api/v1/sales-orders/by-customer/{customerId} &nbsp;·&nbsp; /pending-delivery</td><td>Queries</td></tr>
+</table>
+
+<h2>6. Common Workflows (copy-paste)</h2>
+
+<h3>A. Scan a product and check its stock</h3>
+<pre><code># barcode scanner produces the digits — look the product up
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/products/by-barcode/1807228305172
+# → data.id is the productId
+
+# stock across all warehouses
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/inventory/products/&lt;productId&gt;/stock</code></pre>
+
+<h3>B. Create a product with a barcode</h3>
+<pre><code>curl -X POST http://localhost:8080/api/v1/products \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Wireless Mouse","sku":"SKU-00123","description":"Demo",
+       "brand":"Acme","unitPrice":29.99,"unitCost":12.50,"unit":"PIECE",
+       "reorderPoint":10,"reorderQuantity":50}'
+# then generate its barcode image:
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/products/&lt;productId&gt;/barcode</code></pre>
+
+<h3>C. Receive stock (stock-in)</h3>
+<pre><code>curl -X POST http://localhost:8080/api/v1/inventory/stock-in \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"productId":"&lt;productId&gt;","warehouseId":"&lt;warehouseId&gt;",
+       "quantity":100,"unitCost":12.50,"referenceType":"MANUAL","notes":"Initial stock"}'</code></pre>
+
+<h3>D. Adjust stock (damage, loss, correction)</h3>
+<pre><code>curl -X POST http://localhost:8080/api/v1/inventory/adjustments \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"productId":"&lt;productId&gt;","warehouseId":"&lt;warehouseId&gt;",
+       "adjustmentQuantity":-5,"reason":"DAMAGED","notes":"Broken in storage"}'</code></pre>
+
+<h3>E. Ship stock out / transfer between warehouses</h3>
+<pre><code>curl -X POST http://localhost:8080/api/v1/inventory/stock-out \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"productId":"&lt;productId&gt;","warehouseId":"&lt;warehouseId&gt;","quantity":10}'
+
+curl -X POST http://localhost:8080/api/v1/inventory/transfers \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"productId":"&lt;productId&gt;","sourceWarehouseId":"&lt;from&gt;",
+       "targetWarehouseId":"&lt;to&gt;","quantity":20}'</code></pre>
+
+<h3>F. Audit trail — what happened to my stock?</h3>
+<pre><code>curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/api/v1/inventory/transactions?productId=&lt;productId&gt;&amp;page=0&amp;size=20"</code></pre>
+
+<h2>7. Current Local Data &amp; Known Notes</h2>
+<table>
+  <tr><th>Item</th><th>Value</th></tr>
+  <tr><td>Demo products</td><td>Wireless Mouse <span class="mono">SKU-FCULR</span> (barcode <span class="mono">1807228305172</span>), <span class="mono">SKU-DEMO2</span> (barcode <span class="mono">4299857208899</span>)</td></tr>
+  <tr><td>Demo warehouse</td><td><span class="mono">WH-MAIN</span> — “Main Warehouse”, id <span class="mono">349fe968-d0bc-4ff5-9626-587ac3b2b8f5</span></td></tr>
+  <tr><td>Seeded users</td><td><span class="mono">system.admin</span> (SYSTEM_ADMIN), <span class="mono">preview.user</span>, <span class="mono">demo.admin</span></td></tr>
+</table>
+<div class="note">
+<b>Known issues to fix:</b>
+(1)&nbsp;The BCrypt hash in <span class="mono">V2__seed_data.sql</span> does not match the documented admin
+password — it was corrected directly in the local database on 2026-07-04, but the migration file still
+needs regenerating for fresh installs.
+(2)&nbsp;The gateway’s audit route points to port 8008, which belongs to sales-order.
+(3)&nbsp;See <span class="mono">KNOWN_LIMITATIONS.md</span> for the full list.
+</div>
+
+<p class="small" style="margin-top:14pt;">
+Sources: <span class="mono">docker-compose.yml</span>, <span class="mono">services/*/src/main/java/**/*Controller.java</span>,
+<span class="mono">services/api-gateway/src/main/resources/application.yml</span>,
+<span class="mono">services/identity-service/src/main/resources/db/migration/V2__seed_data.sql</span>.
+All endpoints in §5–6 were verified live against the running stack on 2026-07-04.
+</p>
+
+</body>
+</html>

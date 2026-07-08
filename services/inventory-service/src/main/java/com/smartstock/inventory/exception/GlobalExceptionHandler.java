@@ -9,6 +9,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -49,6 +50,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(errorBody("INSUFFICIENT_PERMISSIONS", "You do not have permission to perform this action"));
+    }
+
+    // Unmapped paths (e.g. GET /inventory with no such endpoint) fall through to
+    // static-resource resolution; without this handler they surface as 500s.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(errorBody("NOT_FOUND", "No endpoint exists at this path"));
     }
 
     @ExceptionHandler(Exception.class)

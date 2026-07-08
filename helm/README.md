@@ -18,18 +18,37 @@ helm/smartstock/
   values-dev.yaml       kind/minikube overlay (chart-rendered secrets)
   values-prod.yaml      prod overlay (external secrets, HPA, Ingress, NetworkPolicy)
   templates/
-    _helpers.tpl        names, labels, image ref, secret-name resolution
-    configmap.yaml      shared non-secret env (Kafka/OTEL/Loki/profile)
-    secret.yaml         DEV-ONLY rendered secret (guarded by secrets.create)
-    deployment.yaml     generic per-service Deployment (ranges over services)
-    service.yaml        generic per-service ClusterIP Service
-    hpa.yaml            HPA where services.<svc>.hpa.enabled
-    serviceaccount.yaml per-release SA (token automount disabled)
-    networkpolicy.yaml  default-deny + intra-namespace (prod)
-    ingress.yaml        single public entrypoint → api-gateway
-    NOTES.txt           post-install summary
-k8s/namespace.yaml      namespace with restricted Pod Security Standards
+    _helpers.tpl              names, labels, image ref, secret-name resolution
+    configmap.yaml            shared non-secret env (Kafka/OTEL/Loki/profile)
+    secret.yaml               DEV-ONLY rendered secret (guarded by secrets.create)
+    externalsecret.yaml       prod ExternalSecret (ESO) → secrets.existingSecret
+    deployment.yaml           per-service Deployment: rolling updates, graceful
+                              shutdown, config checksum, topology spread
+    service.yaml              per-service ClusterIP Service
+    hpa.yaml                  HPA (CPU + optional memory) with scale behavior
+    pdb.yaml                  PodDisruptionBudget for multi-replica/HPA services
+    postgres-statefulset.yaml self-hosted Postgres StatefulSet + PVC per DB (dev)
+    backup-cronjob.yaml       daily pg_dump → S3/MinIO with retention pruning
+    serviceaccount.yaml       per-release SA (token automount disabled)
+    networkpolicy.yaml        default-deny + intra-namespace (prod)
+    ingress.yaml              single public entrypoint → api-gateway
+    NOTES.txt                 post-install summary
+k8s/namespace.yaml            namespace with restricted Pod Security Standards
 ```
+
+## Production capabilities (Phase 9)
+
+| Concern | How | Toggle |
+|---------|-----|--------|
+| **Rolling updates** | `RollingUpdate` (maxSurge 25%, maxUnavailable 0), `minReadySeconds`, `progressDeadlineSeconds`, config/secret checksum annotations force rollout on change | always on; tune `rollingUpdate.*` |
+| **Graceful shutdown** | `terminationGracePeriodSeconds` + preStop endpoint-drain sleep | `terminationGracePeriodSeconds`, `preStopSleepSeconds` |
+| **Persistent Volumes** | Postgres `StatefulSet` + `volumeClaimTemplates` (dynamic PVC per DB) | `postgres.enabled` (dev), managed in prod |
+| **HPA** | CPU + optional memory targets, scale-up/down stabilization | `services.<svc>.hpa.*`, `hpaBehavior.*` |
+| **PodDisruptionBudget** | rendered for multi-replica/HPA services only | `podDisruptionBudget.enabled` |
+| **Topology spread** | across nodes/zones for HA | `topologySpread.enabled` |
+| **Secrets** | dev: chart-rendered; prod: ExternalSecret → external store | `secrets.create`, `externalSecret.enabled` |
+| **Backup** | daily `pg_dump` CronJob → S3/MinIO, retention pruning | `backup.enabled` |
+| **Disaster recovery** | runbook + restore script | [docs/deployment/DISASTER_RECOVERY.md](../docs/deployment/DISASTER_RECOVERY.md) |
 
 ## Secrets strategy (two-tier)
 
@@ -79,10 +98,14 @@ and `loki` Services. Options:
 
 ## Known gaps before this is production-ready (M8 backlog)
 
-- [ ] `helm lint` / `helm template` verified in CI; a `kubeconform` / `kubeval` schema gate wired into the pipeline.
-- [ ] Real infra: Postgres-per-service (StatefulSets or managed), Kafka, Redis.
+- [x] `helm lint` / `helm template` verified in CI; `kubeconform` schema gate wired into the pipeline (`helm-validate` job).
+- [x] Postgres-per-service as **StatefulSets** (self-hosted, `postgres.enabled`) or **managed** (prod overlay hosts).
+- [x] `PodDisruptionBudget` for HPA-managed/multi-replica services + `topologySpreadConstraints` (prod overlay).
+- [x] Verify DB names for purchase-order / sales-order against `docker-compose.yml` (`smartstock_purchase_order`, `smartstock_sales_order` — match).
+- [x] Backup strategy (`pg_dump` CronJob → S3) and disaster-recovery runbook (`docs/deployment/DISASTER_RECOVERY.md`).
+- [ ] Managed **Kafka** and **Redis** endpoints wired for prod (config points at placeholders; provision real infra).
 - [ ] Split **liveness/readiness probe groups** (`/actuator/health/liveness|readiness`) once `management.endpoint.health.probes.enabled=true` in the services.
-- [ ] `PodDisruptionBudget` for HPA-managed services; `topologySpreadConstraints`.
-- [ ] Verify DB names for purchase-order / sales-order against `docker-compose.yml`.
 - [ ] Gatling p99 ≤200ms validation (M8 gate 3) and Trivy-clean images (M8 gate 4 — already enforced in ci-cd.yml).
 - [ ] CD stage: `helm upgrade` from CI on tag, with rollout-status gating.
+- [x] Live-cluster validation: dev overlay installed on kind (k8s 1.29.2) — restricted-PSS admission, 8/8 Postgres StatefulSets Ready, 8/8 PVCs Bound, PV data-persistence across pod restart; prod overlay passes server-side dry-run (HPA/PDB/CronJob/Ingress/NetworkPolicy). See DEPLOYMENT_REPORT §8.1.
+- [ ] Publish service images to GHCR so app Deployments reach `Ready` (currently `ImagePullBackOff` locally — images not built), then run `scripts/smoke-test.sh` end-to-end (also needs Kafka deployed).

@@ -29,7 +29,14 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-cloud.version>2024.0.3</spring-cloud.version>
+        <!-- Must stay on the 2023.0.x (Leyton) train while the parent is on Boot 3.3.x:
+             2024.0.x targets Boot 3.4 / Framework 6.2 and Gateway 4.2 calls Framework
+             6.2-only APIs (e.g. SimpleEvaluationContext.Builder.withAssignmentDisabled),
+             which throw NoSuchMethodError on Boot 3.3's Framework 6.1 (KNOWN_LIMITATIONS L-3).
+             Within the train, stay contemporaneous with the Boot patch in use: late 2023.0.x
+             releases (e.g. 2023.0.6, Gateway 4.1.10) call HttpHeaders.headerSet(), which only
+             exists in later 6.1.x patches than Boot 3.3.1's Framework 6.1.10. -->
+        <spring-cloud.version>2023.0.2</spring-cloud.version>
         <jjwt.version>0.12.3</jjwt.version>
         <lombok.version>1.18.30</lombok.version>
         <testcontainers.version>1.20.4</testcontainers.version>
@@ -38,6 +45,19 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Must be imported BEFORE spring-cloud-dependencies: Spring Cloud 2024.0.x
+                 targets Boot 3.4 and manages opentelemetry-exporter-otlp at 1.39.x while
+                 Boot 3.3.1 manages the other otel artifacts at 1.37.0 — the mixed
+                 classpath makes the OTLP exporter throw NoClassDefFoundError at startup
+                 (KNOWN_LIMITATIONS L-3). First-declared import wins in Maven, so this
+                 BOM pins every otel artifact to the Boot-managed 1.37.0. -->
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>1.37.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -88,11 +108,14 @@
             <artifactId>micrometer-tracing-bridge-otel</artifactId>
         </dependency>
 
-        <!-- OTLP exporter — sends spans to Grafana Tempo -->
+        <!-- OTLP exporter — sends spans to Grafana Tempo.
+             No explicit version: the opentelemetry-bom import above pins the whole
+             otel family to the Boot-managed 1.37.0. A literal version here (1.39.0
+             previously) overrides every BOM and desyncs the exporter from its own
+             transitives → NoClassDefFoundError at startup. -->
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-otlp</artifactId>
-            <version>1.39.0</version>
         </dependency>
 
         <!-- Prometheus metrics scrape endpoint -->

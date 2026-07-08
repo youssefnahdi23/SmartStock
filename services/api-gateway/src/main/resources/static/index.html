@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartStock AI — Console</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1a2233; --muted: #6b7486;
+    --line: #e3e6eb; --accent: #2563eb; --accent-text: #ffffff;
+    --ok: #16a34a; --warn: #d97706; --err: #dc2626; --chip: #eef2ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1420; --panel: #171e2e; --text: #e7ebf2; --muted: #8b94a7;
+      --line: #26304a; --accent: #3b82f6; --accent-text: #ffffff; --chip: #1e2a4a;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 8px; padding: 7px 14px; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+  button:disabled { opacity: .5; cursor: default; }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
+  textarea { font-family: ui-monospace, "Cascadia Code", Menlo, monospace; font-size: 12.5px; min-height: 170px; }
+  label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 12.5px; }
+
+  /* Auth screen */
+  #auth { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px; width: 380px; max-width: 100%; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .logo { width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .brand h1 { font-size: 17px; }
+  .brand small { display: block; color: var(--muted); font-weight: 400; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+  .tabs button { flex: 1; }
+  .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+
+  /* App shell */
+  #app { display: none; min-height: 100vh; }
+  #app.on { display: grid; grid-template-columns: 210px 1fr; }
+  aside { background: var(--panel); border-right: 1px solid var(--line); padding: 18px 12px; }
+  aside .brand { padding: 0 8px; }
+  nav button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 12px; border-radius: 8px; color: var(--text); margin: 2px 0; }
+  nav button.active, nav button:hover { background: var(--chip); color: var(--accent); }
+  main { padding: 22px 26px; overflow-x: auto; }
+  header.bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
+  header.bar h2 { font-size: 18px; }
+  .who { color: var(--muted); font-size: 12.5px; text-align: right; }
+  .who b { color: var(--text); }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; align-items: start; }
+  .grid.single { grid-template-columns: minmax(0, 1fr); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .panel h3 { font-size: 14px; margin-bottom: 10px; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--panel); }
+  .pill { display: inline-block; padding: 1px 9px; border-radius: 99px; background: var(--chip); color: var(--accent); font-size: 12px; }
+  .note { color: var(--muted); font-size: 12.5px; margin: 8px 0; }
+  #toast { position: fixed; bottom: 18px; right: 18px; max-width: 420px; padding: 12px 16px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.18); display: none; font-size: 13px; }
+  #toast.ok { border-left: 4px solid var(--ok); } #toast.err { border-left: 4px solid var(--err); }
+  .links a { color: var(--accent); text-decoration: none; margin-right: 14px; font-size: 12.5px; }
+  .row { display: flex; gap: 8px; } .row > * { flex: 1; }
+  .mt { margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<!-- ── Auth ─────────────────────────────────────────────── -->
+<div id="auth">
+  <div class="card">
+    <div class="brand"><div class="logo">S</div><h1>SmartStock AI<small>Inventory Management Console</small></h1></div>
+    <div class="tabs">
+      <button id="tabLogin" class="active" onclick="authTab('login')">Sign in</button>
+      <button id="tabReg" onclick="authTab('reg')">Create account</button>
+    </div>
+    <div id="fLogin">
+      <label>Username</label><input id="lUser" value="demo.admin" autocomplete="username">
+      <label>Password</label><input id="lPass" type="password" value="" autocomplete="current-password">
+      <button class="primary mt" style="width:100%" onclick="login()">Sign in</button>
+    </div>
+    <div id="fReg" style="display:none">
+      <div class="row">
+        <div><label>First name</label><input id="rFirst" value="Demo"></div>
+        <div><label>Last name</label><input id="rLast" value="Admin"></div>
+      </div>
+      <label>Username</label><input id="rUser" value="demo.admin">
+      <label>Email</label><input id="rMail" value="demo.admin@smartstock.dev">
+      <label>Password</label><input id="rPass" type="password" placeholder="min 8 chars, mixed case + symbol">
+      <label>Role</label>
+      <select id="rRole">
+        <option value="role-sys-admin" selected>System Administrator (full access)</option>
+        <option value="role-wh-mgr">Warehouse Manager</option>
+        <option value="role-inv-op">Inventory Operator</option>
+        <option value="role-sup-mgr">Supplier Manager</option>
+        <option value="">No role (read-only denied — for testing RBAC)</option>
+      </select>
+      <button class="primary mt" style="width:100%" onclick="register()">Create account &amp; sign in</button>
+    </div>
+    <p class="note mt">Runs against the local gateway on <code>:8080</code>. Registration is open by design in this dev stack; pick “System Administrator” to browse everything.</p>
+  </div>
+</div>
+
+<!-- ── App ──────────────────────────────────────────────── -->
+<div id="app">
+  <aside>
+    <div class="brand"><div class="logo">S</div><h1 style="font-size:15px">SmartStock AI</h1></div>
+    <nav id="nav"></nav>
+    <div class="links" style="margin-top:22px; padding: 0 12px;">
+      <a href="/swagger-ui.html" target="_blank">Swagger</a>
+      <a href="http://localhost:3000" target="_blank">Grafana</a>
+      <a href="http://localhost:8025" target="_blank">Mailpit</a>
+    </div>
+  </aside>
+  <main>
+    <header class="bar">
+      <h2 id="title"></h2>
+      <div style="display:flex; gap:12px; align-items:center">
+        <div class="who"><b id="whoName"></b><br><span id="whoRoles"></span></div>
+        <button onclick="logout()">Sign out</button>
+      </div>
+    </header>
+    <div id="content"></div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '/api/v1';
+let token = sessionStorage.getItem('ss_token') || null;
+
+const SECTIONS = [
+  { key: 'products',        title: 'Products',        list: '/products',
+    create: { path: '/products', tpl: { name: 'Wireless Mouse', sku: 'SKU-' + rnd(), description: 'Demo product', unitPrice: 29.99, unitCost: 12.5, unit: 'PIECE', brand: 'Acme' } } },
+  { key: 'warehouses',      title: 'Warehouses',      list: '/warehouses',
+    create: { path: '/warehouses', tpl: { code: 'WH-' + rnd(), name: 'Central Warehouse', description: 'Demo warehouse', type: 'DISTRIBUTION',
+      location: { address: '1 Logistics Way', city: 'Tunis', country: 'TN', zipCode: '1000' },
+      capacity: { maxFloorSpace: 5000, floorSpaceUnit: 'sqm', maxPallets: 1200 }, active: true } } },
+  { key: 'suppliers',       title: 'Suppliers',       list: '/suppliers',
+    create: { path: '/suppliers', tpl: { supplierCode: 'SUP-' + rnd(), supplierName: 'Acme Components Ltd', supplierType: 'VENDOR',
+      emailAddress: 'sales@acme.example', phoneNumber: '+216 70 000 000', currencyCode: 'USD', paymentTerms: 'NET_30' } } },
+  { key: 'customers',       title: 'Customers',       list: '/customers',
+    create: { path: '/customers', tpl: { customerCode: 'CUST-' + rnd(), customerName: 'Globex Retail', customerType: 'BUSINESS',
+      companyName: 'Globex SARL', emailAddress: 'purchasing@globex.example', phoneNumber: '+216 71 000 000' } } },
+  { key: 'purchase-orders', title: 'Purchase Orders', list: '/purchase-orders', note: 'Created through the procurement flow (supplier + product ids) — use Swagger to compose one.' },
+  { key: 'sales-orders',    title: 'Sales Orders',    list: '/sales-orders',    note: 'Created through the sales flow (customer + stock) — use Swagger to compose one.' },
+  { key: 'inventory',       title: 'Inventory',       custom: 'inventory' },
+];
+
+function rnd() { return Math.random().toString(36).slice(2, 7).toUpperCase(); }
+function el(id) { return document.getElementById(id); }
+function toast(msg, ok) {
+  const t = el('toast'); t.textContent = msg; t.className = ok ? 'ok' : 'err'; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', 5000);
+}
+
+function authTab(which) {
+  el('fLogin').style.display = which === 'login' ? '' : 'none';
+  el('fReg').style.display   = which === 'reg'   ? '' : 'none';
+  el('tabLogin').classList.toggle('active', which === 'login');
+  el('tabReg').classList.toggle('active', which === 'reg');
+}
+
+async function api(method, path, body) {
+  const res = await fetch(API + path, {
+    method,
+    headers: Object.assign({ 'Content-Type': 'application/json' },
+      token ? { 'Authorization': 'Bearer ' + token } : {}),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* empty body */ }
+  if (!res.ok) {
+    const msg = extractError(data, res.status);
+    const err = new Error(msg); err.status = res.status; err.data = data; throw err;
+  }
+  return data;
+}
+
+function extractError(d, status) {
+  if (!d) return 'HTTP ' + status;
+  if (d.errors && d.errors.length) return d.errors.map(e => e.message || e.code).join('; ');
+  if (d.fieldErrors) return 'Validation: ' + Object.entries(d.fieldErrors).map(([k, v]) => `${k}: ${v}`).join('; ');
+  return d.message || d.error || ('HTTP ' + status);
+}
+
+// Services wrap payloads differently — unwrap the common envelopes.
+function unwrap(d) {
+  if (!d) return [];
+  if (Array.isArray(d)) return d;
+  for (const k of ['data', 'content']) {
+    if (d[k]) {
+      if (Array.isArray(d[k])) return d[k];
+      if (Array.isArray(d[k].content)) return d[k].content;
+      if (typeof d[k] === 'object') return unwrap(d[k]);
+    }
+  }
+  return [d];
+}
+
+async function login() {
+  try {
+    const d = await api('POST', '/auth/login', { username: el('lUser').value, password: el('lPass').value });
+    token = (d.data || d).accessToken;
+    sessionStorage.setItem('ss_token', token);
+    enter();
+  } catch (e) { toast('Login failed: ' + e.message); }
+}
+
+async function register() {
+  const role = el('rRole').value;
+  try {
+    await api('POST', '/users/register', {
+      username: el('rUser').value, email: el('rMail').value, password: el('rPass').value,
+      firstName: el('rFirst').value, lastName: el('rLast').value,
+      roleIds: role ? [role] : [],
+    });
+    toast('Account created — signing in…', true);
+    el('lUser').value = el('rUser').value; el('lPass').value = el('rPass').value;
+    await login();
+  } catch (e) { toast('Registration failed: ' + e.message); }
+}
+
+function logout() { sessionStorage.removeItem('ss_token'); token = null; location.reload(); }
+
+function claims() {
+  try { return JSON.parse(atob(token.split('.')[1])); } catch (e) { return {}; }
+}
+
+function enter() {
+  el('auth').style.display = 'none';
+  el('app').classList.add('on');
+  const c = claims();
+  el('whoName').textContent = c.username || 'user';
+  el('whoRoles').textContent = (c.roles || []).join(', ') || 'no roles';
+  const nav = el('nav'); nav.innerHTML = '';
+  SECTIONS.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.textContent = s.title; b.onclick = () => show(i);
+    b.id = 'nav-' + s.key; nav.appendChild(b);
+  });
+  show(0);
+}
+
+async function show(i) {
+  const s = SECTIONS[i];
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  el('nav-' + s.key).classList.add('active');
+  el('title').textContent = s.title;
+  const c = el('content');
+
+  if (s.custom === 'inventory') { renderInventory(c); return; }
+
+  c.innerHTML = `<div class="grid ${s.create ? '' : 'single'}">
+      <div class="panel"><h3>${s.title} <span class="pill" id="count"></span></h3>
+        ${s.note ? `<p class="note">${s.note}</p>` : ''}
+        <div class="tablewrap" id="tbl"><p class="note">Loading…</p></div></div>
+      ${s.create ? `<div class="panel"><h3>Create ${s.title.replace(/s$/, '').toLowerCase()}</h3>
+        <p class="note">Edit the JSON and submit — validation errors will guide you.</p>
+        <textarea id="tpl">${JSON.stringify(s.create.tpl, null, 2)}</textarea>
+        <button class="primary mt" style="width:100%" onclick="createEntity(${i})">Create</button></div>` : ''}
+    </div>`;
+
+  try {
+    const rows = unwrap(await api('GET', s.list + '?page=0&size=25'));
+    el('count').textContent = rows.length;
+    el('tbl').innerHTML = renderTable(rows);
+  } catch (e) {
+    el('tbl').innerHTML = `<p class="note" style="color:var(--err)">${e.message}${e.status === 403 ? ' — your user lacks the required role; register a System Administrator account.' : ''}</p>`;
+  }
+}
+
+async function createEntity(i) {
+  const s = SECTIONS[i];
+  let body;
+  try { body = JSON.parse(el('tpl').value); } catch (e) { toast('Invalid JSON: ' + e.message); return; }
+  try {
+    await api('POST', s.create.path, body);
+    toast(s.title.replace(/s$/, '') + ' created', true);
+    show(i);
+  } catch (e) { toast('Create failed: ' + e.message); }
+}
+
+function renderTable(rows) {
+  if (!rows.length) return '<p class="note">No records yet — create one on the right.</p>';
+  const cols = [];
+  for (const k of Object.keys(rows[0])) {
+    const v = rows[0][k];
+    if (v === null || ['string', 'number', 'boolean'].includes(typeof v)) cols.push(k);
+    if (cols.length >= 8) break;
+  }
+  const head = cols.map(c => `<th>${c}</th>`).join('');
+  const body = rows.map(r => '<tr>' + cols.map(c => {
+    let v = r[c]; if (v === null || v === undefined) v = '';
+    if (typeof v === 'string' && v.length > 36) v = v.slice(0, 33) + '…';
+    return `<td title="${String(r[c] ?? '')}">${v}</td>`;
+  }).join('') + '</tr>').join('');
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+async function renderInventory(c) {
+  c.innerHTML = `<div class="grid single"><div class="panel">
+      <h3>Stock lookup</h3>
+      <p class="note">Inventory is event-driven: stock exists after a <b>stock-in</b> (see Swagger → Inventory Service). Look up stock held in a warehouse:</p>
+      <div class="row" style="max-width:560px">
+        <input id="whId" placeholder="warehouse id (copy from Warehouses tab)">
+        <button class="primary" onclick="lookupStock()" style="flex:0 0 auto">Lookup</button>
+      </div>
+      <div class="tablewrap mt" id="invTbl"></div></div></div>`;
+}
+
+async function lookupStock() {
+  const id = el('whId').value.trim();
+  if (!id) { toast('Paste a warehouse id first'); return; }
+  try {
+    const rows = unwrap(await api('GET', `/inventory/warehouses/${encodeURIComponent(id)}/stock`));
+    el('invTbl').innerHTML = renderTable(rows);
+  } catch (e) { el('invTbl').innerHTML = `<p class="note" style="color:var(--err)">${e.message}</p>`; }
+}
+
+// Session restore
+if (token) { enter(); } else { authTab('login'); }
+</script>
+</body>
+</html>

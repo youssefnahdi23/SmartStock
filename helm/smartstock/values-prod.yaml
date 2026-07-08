@@ -25,7 +25,15 @@ config:
 
 secrets:
   create: false
-  existingSecret: "smartstock-secrets"   # managed by External Secrets Operator
+  existingSecret: "smartstock-secrets"   # populated by the ExternalSecret below
+
+# Sync the app Secret from the external store (AWS Secrets Manager / Vault) via ESO.
+externalSecret:
+  enabled: true
+  refreshInterval: 1h
+  secretStore:
+    name: smartstock-secret-store
+    kind: ClusterSecretStore
 
 resources:
   requests:
@@ -38,6 +46,30 @@ resources:
 networkPolicy:
   enabled: true
 
+# HA hardening: spread replicas across nodes and protect them during drains.
+topologySpread:
+  enabled: true
+  topologyKey: topology.kubernetes.io/zone
+  whenUnsatisfiable: ScheduleAnyway
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+# Managed Postgres (RDS/Cloud SQL) — no in-cluster StatefulSets in prod.
+postgres:
+  enabled: false
+
+# Daily encrypted-at-rest dumps to S3 with 30-day retention.
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retentionDays: 30
+  s3:
+    bucket: smartstock-prod-backups
+    region: us-east-1
+    endpoint: ""            # AWS S3
+    credentialsSecret: smartstock-backup-s3
+
 ingress:
   enabled: true
   className: nginx
@@ -48,7 +80,11 @@ ingress:
     - hosts: [ api.smartstock.example.com ]
       secretName: smartstock-tls
 
-# Production autoscaling per roadmap M8 (inventory, sales-order, api-gateway).
+# Production service overrides.
+# DB hosts point at managed Postgres (RDS/Cloud SQL) reachable in the `data`
+# namespace — postgres.enabled=false, so nothing is self-hosted. Adjust the FQDNs
+# to your provider's endpoints. Autoscaling per roadmap M8 (inventory, sales-order,
+# api-gateway).
 services:
   api-gateway:
     replicas: 2
@@ -57,6 +93,25 @@ services:
       minReplicas: 2
       maxReplicas: 12
       targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+  identity-service:
+    database:
+      host: postgres-identity.data.svc
+  product-service:
+    database:
+      host: postgres-product.data.svc
+  warehouse-service:
+    database:
+      host: postgres-warehouse.data.svc
+  supplier-service:
+    database:
+      host: postgres-supplier.data.svc
+  customer-service:
+    database:
+      host: postgres-customer.data.svc
+  purchase-order-service:
+    database:
+      host: postgres-purchase-order.data.svc
   inventory-service:
     replicas: 2
     database:
@@ -66,6 +121,7 @@ services:
       minReplicas: 2
       maxReplicas: 10
       targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
   sales-order-service:
     replicas: 2
     database:
@@ -75,3 +131,4 @@ services:
       minReplicas: 2
       maxReplicas: 8
       targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80

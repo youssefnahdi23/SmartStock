@@ -79,7 +79,12 @@
         <jacoco.minimum.coverage>0.20</jacoco.minimum.coverage>
         
         <!-- Observability -->
-        <opentelemetry.version>1.39.0</opentelemetry.version>
+        <!-- Must match the version Spring Boot 3.3.x manages for the transitive otel
+             artifacts (exporter-common, exporter-otlp-common, …); a higher pin here
+             upgrades only opentelemetry-exporter-otlp while its transitives stay at the
+             Boot-managed version, and the OTLP exporter then fails at startup with
+             NoClassDefFoundError (LowAllocationTraceRequestMarshaler). -->
+        <opentelemetry.version>1.37.0</opentelemetry.version>
         <micrometer.version>1.13.1</micrometer.version>
         <micrometer-tracing.version>1.3.1</micrometer-tracing.version>
         <loki4j.version>1.5.2</loki4j.version>

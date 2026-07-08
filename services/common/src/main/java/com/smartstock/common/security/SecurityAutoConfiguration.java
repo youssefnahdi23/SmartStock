@@ -54,6 +54,10 @@ public class SecurityAutoConfiguration {
                                 "/actuator/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
+                                // /api-docs is the fleet-standard springdoc path (the gateway
+                                // rewrites /api-docs/<service> onto it); /v3/api-docs kept for
+                                // any service still on the springdoc default.
+                                "/api-docs/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
                         .anyRequest().authenticated()

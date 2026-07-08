@@ -1,0 +1,30 @@
+{{- $ctx := . -}}
+{{/*
+PodDisruptionBudget guards availability during *voluntary* disruptions (node
+drains, cluster upgrades, autoscaler scale-down). Rendered only for services that
+run more than one replica or are HPA-managed — a PDB on a single-replica service
+would block node drains entirely, so we skip those.
+*/}}
+{{- range $name, $svc := .Values.services }}
+{{- $hpaEnabled := dig "hpa" "enabled" false $svc }}
+{{- $replicas := int ($svc.replicas | default 1) }}
+{{- if and $ctx.Values.podDisruptionBudget.enabled (or $hpaEnabled (gt $replicas 1)) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "smartstock.labels" $ctx | nindent 4 }}
+    {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 4 }}
+spec:
+  {{- if dig "pdb" "minAvailable" false $svc }}
+  minAvailable: {{ $svc.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ $ctx.Values.podDisruptionBudget.maxUnavailable | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "smartstock.selectorLabels" (dict "svc" $name "ctx" $ctx) | nindent 6 }}
+{{- end }}
+{{- end }}
